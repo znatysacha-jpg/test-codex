@@ -81,6 +81,11 @@ remplir les informations de nom/prénom (via les champs identifiés sur la page 
 en déduisant les parties d'adresse e-mail), ainsi que les numéros de téléphone,
 arrondissements et âges trouvés.
 
+Chaque contact est enregistré même si une seule information est disponible sur
+la page (par exemple uniquement un numéro de téléphone ou uniquement un
+arrondissement). Les autres champs resteront simplement vides dans l'export,
+ce qui vous permet de capitaliser sur toute donnée utile rencontrée.
+
 > 💡 Astuce : si vous souhaitez conserver un fichier CSV, indiquez simplement une
 > sortie avec l'extension `.csv` (ex. `--output leads.csv`).
 

@@ -646,13 +646,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             continue
 
         emails, phones = extract_contacts(html)
-        if not emails and not phones:
-            print(f"No contacts found on {url}")
-            continue
 
         page_contacts = build_contacts(html, emails, phones)
         if not page_contacts:
-            print(f"No structured contacts could be created for {url}")
+            if emails or phones:
+                print(f"No structured contacts could be created for {url}")
+            else:
+                print(f"No contact details were detected on {url}")
             continue
 
         contacts.extend(page_contacts)
