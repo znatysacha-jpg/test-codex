@@ -54,6 +54,21 @@ python3 scraper_bot.py \
 Si vous ne fournissez pas d'options de filtrage supplémentaires en mode
 non-interactif, le script ne filtrera ni par localisation ni par âge.
 
+#### Vérification rapide hors-ligne
+
+Pour confirmer que tout fonctionne sans accéder à Internet, lancez le
+diagnostic embarqué :
+
+```bash
+python3 scraper_bot.py --self-test
+```
+
+Le script exécutera une analyse sur une page HTML interne contenant un exemple
+de contact, vérifiera que l'e-mail, le numéro de téléphone, l'arrondissement et
+l'âge sont correctement détectés, puis indiquera le résultat. Ajoutez
+`--output mon_fichier.xlsx` si vous souhaitez conserver le fichier généré lors
+de ce test.
+
 #### Mode automatique via fichier de configuration
 
 Pour lancer le bot sans aucune intervention (simplement exécuter le script et
@@ -103,6 +118,8 @@ python3 scraper_bot.py --input-file urls.txt
 - `--min-age` / `--max-age`: bornes d'âge à respecter (mode non interactif).
 - `--non-interactive`: exécute le script sans questions (utilise les options ou aucun filtre). Nécessite `--urls` ou `--input-file`.
 - `--config`: fichier JSON de configuration (par défaut `scraper_config.json` si présent).
+- `--self-test`: exécute un test hors-ligne pour valider la collecte et
+  l'export (aucun fichier conservé sauf si `--output` est précisé).
 
 Seules les pages contenant à la fois au moins un mot-clé de localisation fourni
 et une mention d'âge dans l'intervalle indiqué seront conservées. Le fichier

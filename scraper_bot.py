@@ -31,6 +31,7 @@ import sys
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Iterable, List, Sequence, Set, Tuple
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -82,8 +83,8 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument(
         "--output",
         type=Path,
-        default=Path("leads.xlsx"),
-        help="Destination file (Excel .xlsx by default)",
+        default=None,
+        help="Destination file (defaults to leads.xlsx unless --self-test without --output)",
     )
     parser.add_argument(
         "--timeout",
@@ -119,6 +120,11 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
             "defaults. If omitted, the script looks for scraper_config.json in the "
             "current directory."
         ),
+    )
+    parser.add_argument(
+        "--self-test",
+        action="store_true",
+        help="Run an offline sanity check using a built-in HTML snippet",
     )
     return parser.parse_args(argv)
 
@@ -187,6 +193,80 @@ def obtain_urls(args: argparse.Namespace) -> List[str]:
     return urls
 
 
+def run_self_test(output: Path | None) -> int:
+    """Run an offline sanity check to validate the scraping pipeline."""
+
+    sample_html = """
+    <html>
+        <body>
+            <p>Contactez Jane via jane@example.com</p>
+            <p>Téléphone: +33 1 23 45 67 89</p>
+            <p>Âge: 28 ans</p>
+            <p>Situé dans le 5e arrondissement de Paris.</p>
+        </body>
+    </html>
+    """
+
+    emails, phones = extract_contacts(sample_html)
+    contacts = build_contacts(sample_html, emails, phones)
+
+    if not emails or "jane@example.com" not in emails:
+        print("Self-test failed: expected email address not detected.", file=sys.stderr)
+        return 1
+
+    if not phones or "+331234567" not in phones:
+        print("Self-test failed: expected phone number not detected.", file=sys.stderr)
+        return 1
+
+    if not contacts:
+        print("Self-test failed: pipeline did not yield any contacts.", file=sys.stderr)
+        return 1
+
+    contact = contacts[0]
+    if contact.arrondissement.lower() != "5e arrondissement":
+        print(
+            "Self-test failed: arrondissement parsing did not match expectations.",
+            file=sys.stderr,
+        )
+        return 1
+    if contact.age != 28:
+        print(
+            "Self-test failed: age parsing did not match expectations.",
+            file=sys.stderr,
+        )
+        return 1
+
+    try:
+        if output is None:
+            with TemporaryDirectory() as tmpdir:
+                temp_path = Path(tmpdir) / "selftest_output.xlsx"
+                write_output(temp_path, contacts)
+                destination = None
+        else:
+            destination = write_output(output, contacts)
+    except Exception as exc:  # pragma: no cover - defensive
+        print(f"Self-test failed while writing output: {exc}", file=sys.stderr)
+        return 1
+
+    print("Self-test completed successfully.")
+    print(
+        "Sample contact extracted:"
+        f" Email={contact.email or 'N/A'},"
+        f" Phone={contact.phone or 'N/A'},"
+        f" Arrondissement={contact.arrondissement or 'N/A'},"
+        f" Age={contact.age if contact.age is not None else 'N/A'}"
+    )
+    if destination is None:
+        print(
+            "No file was written during the self-test. Pass --output <path> to keep the"
+            " generated workbook."
+        )
+    else:
+        print(f"Self-test workbook saved to {destination}")
+
+    return 0
+
+
 def load_config(path: Path) -> dict:
     """Load a JSON configuration file."""
 
@@ -224,11 +304,12 @@ def apply_config(args: argparse.Namespace, config: dict) -> None:
             raise ValueError("The 'input_file' entry must be a string path")
         args.input_file = Path(input_file)
 
-    if "output" in config and (not args.output or args.output == Path("leads.xlsx")):
+    if "output" in config and not getattr(args, "output_provided", False):
         output = config["output"]
         if not isinstance(output, str):
             raise ValueError("The 'output' entry must be a string path")
         args.output = Path(output)
+        args.output_provided = True
 
     if "timeout" in config:
         try:
@@ -761,6 +842,10 @@ def write_output(path: Path, contacts: Sequence[Contact]) -> Path:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
+    args.output_provided = args.output is not None
+
+    if args.self_test:
+        return run_self_test(args.output if args.output_provided else None)
 
     config_path: Path | None = args.config
     if config_path is None:
@@ -776,6 +861,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         except (FileNotFoundError, ValueError) as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return 1
+
+    if args.output is None:
+        args.output = Path("leads.xlsx")
     try:
         if (
             args.locations
