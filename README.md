@@ -15,14 +15,19 @@ plus récente recommandée) et ne nécessite aucune installation additionnelle.
 
 ### Utilisation
 
-Pour lancer le bot avec l'invite interactive, placez-vous dans le dossier du
-projet et exécutez :
+Le script fonctionne aussi bien en mode interactif (par défaut) qu'en mode non
+interactif pour vos tests automatisés.
+
+#### Mode interactif
+
+Fournissez d'abord la source des URL à analyser (`--urls` ou `--input-file`),
+puis laissez le script vous poser les questions de filtrage :
 
 ```bash
-python3 scraper_bot.py
+python3 scraper_bot.py --urls https://example.com https://example.org --output leads.csv
 ```
 
-Le script vous posera successivement trois questions :
+À l'exécution, il vous demandera :
 
 1. **Localisations** : saisissez une ou plusieurs villes/régions séparées par
    des virgules (ex. `Paris,Lyon`).
@@ -31,33 +36,41 @@ Le script vous posera successivement trois questions :
 3. **Âge maximum** : entrez un nombre ou laissez vide pour ignorer la borne
    haute.
 
-Après ces réponses, choisissez l'une des méthodes suivantes pour fournir les
-URL à analyser.
+#### Mode non interactif
 
-Vous pouvez fournir les URL directement en ligne de commande :
-
-```bash
-python scraper_bot.py --urls https://example.com https://example.org --output leads.csv
-```
-
-Ou charger une liste d'URL à partir d'un fichier texte (une URL par ligne) :
+Pour éviter toute invite (utile en script ou pour des tests automatisés),
+fournissez les filtres directement en paramètres et activez le drapeau
+`--non-interactive` :
 
 ```bash
-python scraper_bot.py --input-file urls.txt
+python3 scraper_bot.py \
+    --urls https://example.com https://example.org \
+    --locations Paris Lyon \
+    --min-age 25 --max-age 40 \
+    --non-interactive
 ```
 
-Les options disponibles :
+Si vous ne fournissez pas d'options de filtrage supplémentaires en mode
+non-interactif, le script ne filtrera ni par localisation ni par âge.
+
+#### Lecture depuis un fichier
+
+Vous pouvez également charger une liste d'URL à partir d'un fichier texte (une
+URL par ligne) :
+
+```bash
+python3 scraper_bot.py --input-file urls.txt
+```
+
+### Options principales
 
 - `--urls`: une ou plusieurs URL à analyser.
 - `--input-file`: fichier texte contenant des URL (exclusif avec `--urls`).
 - `--output`: chemin du fichier CSV généré (par défaut `leads.csv`).
 - `--timeout`: délai maximal en secondes pour récupérer chaque page (10s par défaut).
-
-Lors de l'exécution, le script vous demandera également :
-
-- une liste de mots-clés de localisation (séparés par des virgules) qui doivent
-  apparaître dans la page pour que les contacts soient retenus ;
-- un âge minimum et/ou maximum à rechercher dans le contenu de la page.
+- `--locations`: mots-clés de localisation à rechercher (mode non interactif).
+- `--min-age` / `--max-age`: bornes d'âge à respecter (mode non interactif).
+- `--non-interactive`: exécute le script sans questions (utilise les options ou aucun filtre).
 
 Seules les pages contenant à la fois au moins un mot-clé de localisation fourni
 et une mention d'âge dans l'intervalle indiqué seront conservées. Le fichier CSV

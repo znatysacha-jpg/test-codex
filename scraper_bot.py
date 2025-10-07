@@ -85,6 +85,26 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         default=10.0,
         help="Timeout for HTTP requests in seconds (default: 10)",
     )
+    parser.add_argument(
+        "--locations",
+        nargs="+",
+        help="Location keywords to require in the page when running non-interactively",
+    )
+    parser.add_argument(
+        "--min-age",
+        type=int,
+        help="Minimum age to accept when running non-interactively",
+    )
+    parser.add_argument(
+        "--max-age",
+        type=int,
+        help="Maximum age to accept when running non-interactively",
+    )
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="Run without prompting for filters (uses CLI options or defaults)",
+    )
     return parser.parse_args(argv)
 
 
@@ -127,6 +147,24 @@ def normalize_phone(raw: str) -> str:
     if digits.startswith("00"):
         digits = "+" + digits[2:]
     return digits
+
+
+def normalise_filters(
+    locations: Sequence[str] | None,
+    min_age: int | None,
+    max_age: int | None,
+) -> Tuple[List[str], Tuple[int | None, int | None]]:
+    """Normalise CLI-provided filters and validate the age range."""
+
+    cleaned_locations = [part.strip() for part in (locations or []) if part.strip()]
+    if min_age is not None and min_age < 0:
+        raise ValueError("Minimum age must be non-negative")
+    if max_age is not None and max_age < 0:
+        raise ValueError("Maximum age must be non-negative")
+    if min_age is not None and max_age is not None and min_age > max_age:
+        print("Minimum age is greater than maximum age; swapping the values.")
+        min_age, max_age = max_age, min_age
+    return cleaned_locations, (min_age, max_age)
 
 
 def prompt_filters() -> Tuple[List[str], Tuple[int | None, int | None]]:
@@ -216,7 +254,22 @@ def write_csv(path: Path, rows: Iterable[Tuple[str, str, str]]) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
-    locations, age_range = prompt_filters()
+    try:
+        if (
+            args.locations
+            or args.min_age is not None
+            or args.max_age is not None
+        ):
+            locations, age_range = normalise_filters(
+                args.locations, args.min_age, args.max_age
+            )
+        elif args.non_interactive:
+            locations, age_range = ([], (None, None))
+        else:
+            locations, age_range = prompt_filters()
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
     try:
         urls = read_urls(args)
     except (FileNotFoundError, ValueError) as exc:
