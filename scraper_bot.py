@@ -67,7 +67,7 @@ DEFAULT_USER_AGENT = (
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description=__doc__)
-    source = parser.add_mutually_exclusive_group(required=True)
+    source = parser.add_mutually_exclusive_group(required=False)
     source.add_argument(
         "--urls",
         nargs="+",
@@ -113,17 +113,67 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def read_urls(args: argparse.Namespace) -> List[str]:
-    """Return the list of URLs provided by the user."""
-    if args.urls:
-        return args.urls
-    assert args.input_file is not None
-    if not args.input_file.exists():
-        raise FileNotFoundError(f"Input file not found: {args.input_file}")
-    with args.input_file.open("r", encoding="utf-8") as handle:
+def read_urls_from_file(path: Path) -> List[str]:
+    """Read URLs from a text file (one per non-empty line)."""
+
+    if not path.exists():
+        raise FileNotFoundError(f"Input file not found: {path}")
+    with path.open("r", encoding="utf-8") as handle:
         urls = [line.strip() for line in handle if line.strip()]
     if not urls:
         raise ValueError("The input file does not contain any URLs")
+    return urls
+
+
+def prompt_url_source() -> Tuple[List[str], Path | None]:
+    """Interactively ask the user to provide URLs or a file containing URLs."""
+
+    print("No URLs provided on the command line.")
+    print("You can either paste URLs directly or point to a text file containing them.")
+    while True:
+        choice = (
+            input("How would you like to supply URLs? Enter 'u' for direct entry or 'f' for file: ")
+            .strip()
+            .lower()
+        )
+        if choice in {"", "u", "urls", "url"}:
+            while True:
+                raw_urls = input(
+                    "Enter one or more URLs separated by spaces (leave blank to go back): "
+                ).strip()
+                if not raw_urls:
+                    break
+                urls = [part for part in raw_urls.replace(",", " ").split() if part]
+                if urls:
+                    return urls, None
+                print("No valid URLs detected. Please try again.")
+            continue
+        if choice in {"f", "file"}:
+            file_input = input(
+                "Enter the path to a text file containing URLs (one per line): "
+            ).strip()
+            if not file_input:
+                print("A file path is required. Please try again.")
+                continue
+            return [], Path(file_input)
+        print("Please answer with 'u' for direct URLs or 'f' for a file.")
+
+
+def obtain_urls(args: argparse.Namespace) -> List[str]:
+    """Return the list of URLs provided or collected interactively."""
+
+    if args.urls:
+        return args.urls
+    if args.input_file:
+        return read_urls_from_file(args.input_file)
+    if args.non_interactive:
+        raise ValueError(
+            "You must provide --urls or --input-file when running in non-interactive mode."
+        )
+
+    urls, file_path = prompt_url_source()
+    if file_path is not None:
+        return read_urls_from_file(file_path)
     return urls
 
 
@@ -626,7 +676,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
     try:
-        urls = read_urls(args)
+        urls = obtain_urls(args)
     except (FileNotFoundError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1

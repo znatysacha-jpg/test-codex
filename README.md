@@ -22,20 +22,19 @@ de téléphone**, **Arrondissement** et **Âge**.
 
 #### Mode interactif
 
-Fournissez d'abord la source des URL à analyser (`--urls` ou `--input-file`),
-puis laissez le script vous poser les questions de filtrage :
+Lancez simplement le script sans arguments. Il vous guidera étape par étape :
 
 ```bash
-python3 scraper_bot.py --urls https://example.com https://example.org --output leads.xlsx
+python3 scraper_bot.py
 ```
 
-À l'exécution, il vous demandera :
-
-1. **Localisations** : saisissez une ou plusieurs villes/régions séparées par
+1. **Source des URL** : choisissez de coller directement les URL (séparées par
+   des espaces ou des virgules) ou d'indiquer un fichier texte les contenant.
+2. **Localisations** : saisissez une ou plusieurs villes/régions séparées par
    des virgules (ex. `Paris,Lyon`).
-2. **Âge minimum** : entrez un nombre ou laissez vide pour ignorer la borne
+3. **Âge minimum** : entrez un nombre ou laissez vide pour ignorer la borne
    basse.
-3. **Âge maximum** : entrez un nombre ou laissez vide pour ignorer la borne
+4. **Âge maximum** : entrez un nombre ou laissez vide pour ignorer la borne
    haute.
 
 #### Mode non interactif
@@ -72,7 +71,7 @@ python3 scraper_bot.py --input-file urls.txt
 - `--timeout`: délai maximal en secondes pour récupérer chaque page (10s par défaut).
 - `--locations`: mots-clés de localisation à rechercher (mode non interactif).
 - `--min-age` / `--max-age`: bornes d'âge à respecter (mode non interactif).
-- `--non-interactive`: exécute le script sans questions (utilise les options ou aucun filtre).
+- `--non-interactive`: exécute le script sans questions (utilise les options ou aucun filtre). Nécessite `--urls` ou `--input-file`.
 
 Seules les pages contenant à la fois au moins un mot-clé de localisation fourni
 et une mention d'âge dans l'intervalle indiqué seront conservées. Le fichier
