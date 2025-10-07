@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import re
 import sys
 import zipfile
@@ -110,6 +111,15 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         action="store_true",
         help="Run without prompting for filters (uses CLI options or defaults)",
     )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        help=(
+            "Path to a JSON configuration file providing URLs, filters and other "
+            "defaults. If omitted, the script looks for scraper_config.json in the "
+            "current directory."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -175,6 +185,98 @@ def obtain_urls(args: argparse.Namespace) -> List[str]:
     if file_path is not None:
         return read_urls_from_file(file_path)
     return urls
+
+
+def load_config(path: Path) -> dict:
+    """Load a JSON configuration file."""
+
+    if not path.exists():
+        raise FileNotFoundError(f"Configuration file not found: {path}")
+
+    with path.open("r", encoding="utf-8") as handle:
+        try:
+            data = json.load(handle)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Failed to parse configuration file: {exc}") from exc
+
+    if not isinstance(data, dict):
+        raise ValueError("Configuration file must contain a JSON object")
+
+    return data
+
+
+def apply_config(args: argparse.Namespace, config: dict) -> None:
+    """Merge configuration values into the parsed CLI arguments."""
+
+    if "urls" in config and not args.urls:
+        urls = config["urls"]
+        if isinstance(urls, str):
+            urls = [urls]
+        elif isinstance(urls, Sequence):
+            urls = [str(item).strip() for item in urls if str(item).strip()]
+        else:
+            raise ValueError("The 'urls' entry in the configuration must be a string or list")
+        args.urls = urls
+
+    if "input_file" in config and not args.input_file:
+        input_file = config["input_file"]
+        if not isinstance(input_file, str):
+            raise ValueError("The 'input_file' entry must be a string path")
+        args.input_file = Path(input_file)
+
+    if "output" in config and (not args.output or args.output == Path("leads.xlsx")):
+        output = config["output"]
+        if not isinstance(output, str):
+            raise ValueError("The 'output' entry must be a string path")
+        args.output = Path(output)
+
+    if "timeout" in config:
+        try:
+            args.timeout = float(config["timeout"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("The 'timeout' entry must be a number") from exc
+
+    if "locations" in config and not args.locations:
+        locations = config["locations"]
+        if isinstance(locations, str):
+            locations = [part.strip() for part in locations.split(",") if part.strip()]
+        elif isinstance(locations, Sequence):
+            locations = [str(item).strip() for item in locations if str(item).strip()]
+        else:
+            raise ValueError(
+                "The 'locations' entry must be a string or a list of strings"
+            )
+        args.locations = locations or None
+
+    if "min_age" in config and args.min_age is None:
+        min_age = config["min_age"]
+        if min_age is not None and not isinstance(min_age, int):
+            raise ValueError("The 'min_age' entry must be an integer or null")
+        args.min_age = min_age
+
+    if "max_age" in config and args.max_age is None:
+        max_age = config["max_age"]
+        if max_age is not None and not isinstance(max_age, int):
+            raise ValueError("The 'max_age' entry must be an integer or null")
+        args.max_age = max_age
+
+    non_interactive_flag = config.get("non_interactive")
+    auto_flag = config.get("auto") or config.get("auto_run") or config.get("auto_start")
+    if non_interactive_flag is None:
+        non_interactive_flag = auto_flag
+    if non_interactive_flag is None and config:
+        # Default to non-interactive when a configuration file exists.
+        non_interactive_flag = True
+    if non_interactive_flag is not None:
+        if isinstance(non_interactive_flag, str):
+            args.non_interactive = non_interactive_flag.strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+        else:
+            args.non_interactive = bool(non_interactive_flag)
 
 
 def fetch_url(url: str, timeout: float) -> str:
@@ -659,6 +761,21 @@ def write_output(path: Path, contacts: Sequence[Contact]) -> Path:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
+
+    config_path: Path | None = args.config
+    if config_path is None:
+        default_config = Path("scraper_config.json")
+        if default_config.exists():
+            config_path = default_config
+
+    if config_path is not None:
+        try:
+            config = load_config(config_path)
+            apply_config(args, config)
+            print(f"Loaded configuration from {config_path}")
+        except (FileNotFoundError, ValueError) as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
     try:
         if (
             args.locations

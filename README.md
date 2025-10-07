@@ -54,6 +54,36 @@ python3 scraper_bot.py \
 Si vous ne fournissez pas d'options de filtrage supplémentaires en mode
 non-interactif, le script ne filtrera ni par localisation ni par âge.
 
+#### Mode automatique via fichier de configuration
+
+Pour lancer le bot sans aucune intervention (simplement exécuter le script et
+récupérer le fichier Excel final), créez un fichier `scraper_config.json` dans
+le même dossier que `scraper_bot.py` :
+
+```json
+{
+  "urls": ["https://example.com", "https://example.org"],
+  "locations": ["Paris", "Lyon"],
+  "min_age": 25,
+  "max_age": 45,
+  "output": "mes-leads.xlsx"
+}
+```
+
+Au prochain lancement (`python3 scraper_bot.py`), la configuration sera chargée
+automatiquement et le script n'affichera aucune question avant de générer le
+fichier d'export. Vous pouvez également spécifier un autre fichier de
+configuration avec `--config mon_fichier.json`. Les clés disponibles sont :
+
+- `urls`: liste d'URL à visiter (ou chaîne unique).
+- `input_file`: chemin d'un fichier texte listant les URL.
+- `output`: destination du fichier généré.
+- `timeout`: délai maximal par page (en secondes).
+- `locations`: liste (ou chaîne avec virgules) de mots-clés de localisation.
+- `min_age` / `max_age`: bornes d'âge à respecter.
+- `non_interactive` / `auto`: booléen permettant de forcer (ou non) l'absence
+  d'invite.
+
 #### Lecture depuis un fichier
 
 Vous pouvez également charger une liste d'URL à partir d'un fichier texte (une
@@ -72,6 +102,7 @@ python3 scraper_bot.py --input-file urls.txt
 - `--locations`: mots-clés de localisation à rechercher (mode non interactif).
 - `--min-age` / `--max-age`: bornes d'âge à respecter (mode non interactif).
 - `--non-interactive`: exécute le script sans questions (utilise les options ou aucun filtre). Nécessite `--urls` ou `--input-file`.
+- `--config`: fichier JSON de configuration (par défaut `scraper_config.json` si présent).
 
 Seules les pages contenant à la fois au moins un mot-clé de localisation fourni
 et une mention d'âge dans l'intervalle indiqué seront conservées. Le fichier
