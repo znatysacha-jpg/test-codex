@@ -16,7 +16,9 @@ plus récente recommandée) et ne nécessite aucune installation additionnelle.
 ### Utilisation
 
 Le script fonctionne aussi bien en mode interactif (par défaut) qu'en mode non
-interactif pour vos tests automatisés.
+interactif pour vos tests automatisés et exporte les résultats dans un fichier
+Excel (`.xlsx`) contenant les colonnes **Nom**, **Prénom**, **Email**, **Numéro
+de téléphone**, **Arrondissement** et **Âge**.
 
 #### Mode interactif
 
@@ -24,7 +26,7 @@ Fournissez d'abord la source des URL à analyser (`--urls` ou `--input-file`),
 puis laissez le script vous poser les questions de filtrage :
 
 ```bash
-python3 scraper_bot.py --urls https://example.com https://example.org --output leads.csv
+python3 scraper_bot.py --urls https://example.com https://example.org --output leads.xlsx
 ```
 
 À l'exécution, il vous demandera :
@@ -66,16 +68,21 @@ python3 scraper_bot.py --input-file urls.txt
 
 - `--urls`: une ou plusieurs URL à analyser.
 - `--input-file`: fichier texte contenant des URL (exclusif avec `--urls`).
-- `--output`: chemin du fichier CSV généré (par défaut `leads.csv`).
+- `--output`: chemin du fichier généré (par défaut `leads.xlsx`).
 - `--timeout`: délai maximal en secondes pour récupérer chaque page (10s par défaut).
 - `--locations`: mots-clés de localisation à rechercher (mode non interactif).
 - `--min-age` / `--max-age`: bornes d'âge à respecter (mode non interactif).
 - `--non-interactive`: exécute le script sans questions (utilise les options ou aucun filtre).
 
 Seules les pages contenant à la fois au moins un mot-clé de localisation fourni
-et une mention d'âge dans l'intervalle indiqué seront conservées. Le fichier CSV
-généré contient trois colonnes (`url`, `email`, `phone`). Chaque contact détecté
-sur une page filtrée est exporté sur une ligne distincte.
+et une mention d'âge dans l'intervalle indiqué seront conservées. Le fichier
+Excel généré propose autant de lignes que de contacts détectés et tente de
+remplir les informations de nom/prénom (via les champs identifiés sur la page ou
+en déduisant les parties d'adresse e-mail), ainsi que les numéros de téléphone,
+arrondissements et âges trouvés.
+
+> 💡 Astuce : si vous souhaitez conserver un fichier CSV, indiquez simplement une
+> sortie avec l'extension `.csv` (ex. `--output leads.csv`).
 
 ### Conseils
 
