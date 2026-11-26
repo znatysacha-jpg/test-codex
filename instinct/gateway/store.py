@@ -25,6 +25,17 @@ CREATE TABLE IF NOT EXISTS pending (
     status TEXT NOT NULL DEFAULT 'open',
     at REAL
 );
+-- Historique affiché dans l'app (tous canaux confondus)
+CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    role TEXT NOT NULL,          -- 'agent' ou 'user'
+    kind TEXT NOT NULL,          -- 'text', 'choices', 'whatsapp', 'options', 'file'
+    text TEXT NOT NULL DEFAULT '',
+    data_json TEXT NOT NULL DEFAULT '{}',
+    channel TEXT NOT NULL DEFAULT '',
+    at REAL
+);
+CREATE TABLE IF NOT EXISTS files (id TEXT PRIMARY KEY, filename TEXT NOT NULL, data BLOB NOT NULL, at REAL);
 """
 
 
@@ -96,6 +107,45 @@ class Store:
         with self._lock:
             cur = self._db.execute("UPDATE pending SET status=? WHERE id=? AND status='open'", (status, pid))
             return cur.rowcount == 1
+
+    # --- historique de l'app ---------------------------------------------
+    def add_message(self, role: str, kind: str, text: str = "", data: Optional[dict] = None, channel: str = "") -> int:
+        with self._lock:
+            cur = self._db.execute(
+                "INSERT INTO messages(role, kind, text, data_json, channel, at) VALUES(?,?,?,?,?,?)",
+                (role, kind, text, json.dumps(data or {}, ensure_ascii=False), channel, time.time()),
+            )
+            return int(cur.lastrowid)
+
+    def messages_after(self, after_id: int = 0, limit: int = 50) -> list[dict[str, Any]]:
+        with self._lock:
+            if after_id <= 0:
+                rows = self._db.execute("SELECT * FROM messages ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+                rows = list(reversed(rows))
+            else:
+                rows = self._db.execute("SELECT * FROM messages WHERE id > ? ORDER BY id LIMIT ?", (after_id, limit)).fetchall()
+        out = []
+        for r in rows:
+            d = dict(r)
+            d["data"] = json.loads(d.pop("data_json"))
+            out.append(d)
+        return out
+
+    def last_message_id(self) -> int:
+        with self._lock:
+            row = self._db.execute("SELECT COALESCE(MAX(id), 0) AS m FROM messages").fetchone()
+        return int(row["m"])
+
+    def put_file(self, file_id: str, filename: str, data: bytes) -> None:
+        with self._lock:
+            self._db.execute(
+                "INSERT OR REPLACE INTO files(id, filename, data, at) VALUES(?,?,?,?)", (file_id, filename, data, time.time())
+            )
+
+    def get_file(self, file_id: str) -> Optional[tuple[str, bytes]]:
+        with self._lock:
+            row = self._db.execute("SELECT filename, data FROM files WHERE id=?", (file_id,)).fetchone()
+        return (row["filename"], bytes(row["data"])) if row else None
 
     @staticmethod
     def _row(row) -> Optional[dict[str, Any]]:

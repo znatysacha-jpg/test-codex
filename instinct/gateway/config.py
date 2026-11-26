@@ -53,6 +53,10 @@ class Settings:
     google_client_secret: str = ""
     google_refresh_token: str = ""
 
+    # App iPhone (connecteur claude.ai) et Siri
+    mcp_secret: str = ""
+    siri_token: str = ""
+
     # Divers
     db_path: str = str(ROOT / "data" / "instinct.db")
     poll_seconds: int = 90
@@ -96,6 +100,8 @@ def load_settings() -> Settings:
         google_client_id=_env("GOOGLE_CLIENT_ID"),
         google_client_secret=_env("GOOGLE_CLIENT_SECRET"),
         google_refresh_token=_env("GOOGLE_REFRESH_TOKEN"),
+        mcp_secret=_env("MCP_SECRET"),
+        siri_token=_env("SIRI_TOKEN"),
         db_path=_env("DB_PATH", str(ROOT / "data" / "instinct.db")),
         poll_seconds=int(_env("POLL_SECONDS", "90") or 90),
         timezone=_env("TIMEZONE", "Europe/Paris"),

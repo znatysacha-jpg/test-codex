@@ -10,3 +10,11 @@
 - Clients cibles : à préciser
 - Équipe : à préciser
 - Rythme de travail habituel : à préciser
+
+## Coordonnées pour les réservations
+
+(Utilisées par l'agent pour réserver un restaurant à ton nom. Jamais de carte bancaire ici.)
+
+- Nom pour les réservations : à préciser
+- Téléphone : à préciser
+- E-mail : à préciser

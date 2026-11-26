@@ -5,7 +5,9 @@ Lancement local : uvicorn gateway.app:app --port 8000
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import hmac
 import logging
 import mimetypes
 import threading
@@ -15,9 +17,11 @@ from typing import Any, Optional
 import anthropic
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import PlainTextResponse
+from mcp.server.transport_security import TransportSecuritySettings
 
 from .bridge import Bridge
-from .channels import Channel, Telegram, WhatsApp
+from .channels import AppChannel, Channel, Telegram, WhatsApp
+from .connector import build_connector
 from .config import Settings, load_settings
 from .google_tools import Google
 from .store import Store
@@ -41,21 +45,52 @@ def _run_async(fn, *args) -> None:
 def build(settings: Optional[Settings] = None, client: Optional[anthropic.Anthropic] = None) -> tuple[FastAPI, Bridge]:
     s = settings or load_settings()
     client = client or anthropic.Anthropic()
-    channels: dict[str, Channel] = {}
+    store = Store(s.db_path)
+    channels: dict[str, Channel] = {"app": AppChannel(store)}
     if s.telegram_enabled:
         channels["telegram"] = Telegram(s)
     if s.whatsapp_enabled:
         channels["whatsapp"] = WhatsApp(s)
-    bridge = Bridge(client, Store(s.db_path), s, channels, Google(s))
+    bridge = Bridge(client, store, s, channels, Google(s))
+    connector = build_connector(bridge) if s.mcp_secret else None
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         # Sondage de secours : rattrape les sessions en pause si un webhook ou un flux a été manqué.
         if s.agent_id and s.poll_seconds > 0:
             threading.Thread(target=bridge.poll_forever, daemon=True).start()
-        yield
+        if connector is not None:
+            async with connector.session_manager.run():
+                yield
+        else:
+            yield
 
     app = FastAPI(title="Instinct perso", docs_url=None, redoc_url=None, lifespan=lifespan)
+    if connector is not None:
+        app.mount(
+            f"/mcp/{s.mcp_secret}",
+            connector.streamable_http_app(
+                streamable_http_path="/",
+                stateless_http=True,
+                json_response=True,
+                transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+            ),
+        )
+
+    # ------------------------------------------------------------- Siri
+    @app.post("/siri")
+    async def siri(request: Request, authorization: str = Header(default="")) -> dict:
+        """Raccourci iPhone : « Dis Siri, Instinct » -> texte dicté -> réponse lue à voix haute."""
+        if not s.siri_token or not hmac.compare_digest(authorization, f"Bearer {s.siri_token}"):
+            raise HTTPException(status_code=403)
+        body = await request.json()
+        text = str(body.get("texte") or body.get("text") or "").strip()
+        if not text:
+            return {"reponse": "Je n'ai rien entendu."}
+        if text.startswith("/") and command("app", text):
+            return {"reponse": "C'est fait."}
+        reply = await asyncio.to_thread(bridge.ask_and_wait, text)
+        return {"reponse": reply}
 
     @app.get("/health")
     def health() -> dict:
@@ -65,6 +100,8 @@ def build(settings: Optional[Settings] = None, client: Optional[anthropic.Anthro
             "whatsapp": s.whatsapp_enabled,
             "google": s.google_enabled,
             "skills_repo": bool(s.github_repo_url and s.github_token),
+            "app_connector": connector is not None,
+            "siri": bool(s.siri_token),
         }
 
     # ------------------------------------------------------------- commandes

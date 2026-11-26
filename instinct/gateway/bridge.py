@@ -55,20 +55,44 @@ class Bridge:
 
     # ------------------------------------------------------------------ canaux
     def default_channel(self) -> str:
+        """Canal qui reçoit les messages des tâches planifiées (une notification sur le téléphone)."""
         if self.s.default_channel in self.channels:
             return self.s.default_channel
-        return next(iter(self.channels), "")
+        for name in ("telegram", "whatsapp", "app"):
+            if name in self.channels:
+                return name
+        return ""
 
     def channel_for(self, session_id: str) -> Optional[Channel]:
+        """Canal principal d'une session : celui où l'utilisateur a écrit en dernier."""
         name = self.default_channel()
         if session_id == self.store.get("main_session_id"):
             name = self.store.get("last_channel") or name
         return self.channels.get(name)
 
+    def targets(self, session_id: str) -> list[Channel]:
+        """Le canal principal, plus l'app qui garde tout l'historique."""
+        out: list[Channel] = []
+        for ch in (self.channel_for(session_id), self.channels.get("app")):
+            if ch is not None and ch not in out:
+                out.append(ch)
+        return out
+
     def notify(self, session_id: str, text: str) -> None:
-        ch = self.channel_for(session_id)
-        if ch and text:
+        if not text:
+            return
+        for ch in self.targets(session_id):
             ch.send_text(text)
+
+    def record_user(self, channel: str, content: list[dict]) -> None:
+        if "app" not in self.channels:
+            return
+        texts = [b.get("text", "") for b in content if b.get("type") == "text"]
+        files = [b for b in content if b.get("type") in ("image", "document")]
+        text = "\n".join(t for t in texts if t)
+        if files:
+            text = (text + "\n" if text else "") + f"[{len(files)} pièce(s) jointe(s)]"
+        self.store.add_message("user", "text", text, channel=channel)
 
     # ---------------------------------------------------------------- sessions
     def session_resources(self) -> list[dict]:
@@ -124,6 +148,7 @@ class Bridge:
     def handle_user_input(self, channel: str, content: list[dict], text_for_approval: str = "") -> None:
         """Point d'entrée de tout message de l'utilisateur (texte, image, document)."""
         self.store.set("last_channel", channel)
+        self.record_user(channel, content)
         open_items = self.live_pending()
         if open_items and text_for_approval:
             item = open_items[0]
@@ -274,8 +299,8 @@ class Bridge:
         self.deliver_files(session_id)
 
     def deliver_files(self, session_id: str) -> None:
-        ch = self.channel_for(session_id)
-        if not ch:
+        targets = self.targets(session_id)
+        if not targets:
             return
         try:
             files = self.client.beta.files.list(scope_id=session_id, betas=BETA)
@@ -288,7 +313,8 @@ class Bridge:
                 continue
             try:
                 data = self.client.files.download(fid).read()
-                ch.send_file(_get(f, "filename", "fichier"), data)
+                for ch in targets:
+                    ch.send_file(_get(f, "filename", "fichier"), data)
             except Exception:
                 log.exception("Envoi du fichier %s impossible", fid)
 
@@ -299,18 +325,31 @@ class Bridge:
             return
         name = _get(event, "name", "")
         data = dict(_get(event, "input", {}) or {})
-        if name in tools.NEEDS_APPROVAL:
-            if not self.store.claim(eid, "tool"):
-                return
-            text, options = tools.approval_prompt(name, data)
-            ch = self.channel_for(session_id)
-            pid = self.store.add_pending(session_id, eid, "custom", name, data, options, ch.name if ch else "")
-            if pid and ch:
-                ch.send_choices(text, options, pid)
-            return
         if not self.store.claim(eid, "tool"):
             return
+        if name in tools.NEEDS_APPROVAL:
+            text, options = tools.approval_prompt(name, data)
+            self._ask(session_id, eid, "custom", name, data, text, options)
+            return
+        if name in tools.PRESENTATION:
+            try:
+                kind, card, result = tools.presentation_card(name, data)
+            except tools.ToolError as e:
+                self._send_tool_result(session_id, eid, {"erreur": str(e)}, True)
+                return
+            for ch in self.targets(session_id):
+                ch.send_card(kind, card)
+            self._send_tool_result(session_id, eid, result, False)
+            return
         self._send_tool_result(session_id, eid, *self._run(name, data))
+
+    def _ask(self, session_id: str, event_id: str, kind: str, name: str, data: dict, text: str, options: list[str]) -> None:
+        primary = self.channel_for(session_id)
+        pid = self.store.add_pending(session_id, event_id, kind, name, data, options, primary.name if primary else "")
+        if not pid:
+            return
+        for ch in self.targets(session_id):
+            ch.send_choices(text, options, pid)
 
     def _run(self, name: str, data: dict) -> tuple[Any, bool]:
         try:
@@ -339,10 +378,7 @@ class Bridge:
         name = _get(event, "name", "outil")
         data = dict(_get(event, "input", {}) or {})
         text, options = tools.confirmation_prompt(name, data)
-        ch = self.channel_for(session_id)
-        pid = self.store.add_pending(session_id, eid, "confirm", name, data, options, ch.name if ch else "")
-        if pid and ch:
-            ch.send_choices(text, options, pid)
+        self._ask(session_id, eid, "confirm", name, data, text, options)
 
     def resolve(self, pending_id: str, choice: Optional[int], free_text: str = "") -> str:
         """Applique la réponse de l'utilisateur à une validation. Renvoie un court accusé de réception."""
@@ -367,6 +403,25 @@ class Bridge:
         if choice is None:
             return "Noté."
         return item["options"][choice] if 0 <= choice < len(item["options"]) else "Noté."
+
+    # ----------------------------------------------------------------- Siri
+    def ask_and_wait(self, text: str, timeout: float = 25.0) -> str:
+        """Envoie une demande et attend la première réponse de l'agent (pour que Siri la lise)."""
+        before = self.store.last_message_id()
+        self.handle_user_input("app", [{"type": "text", "text": text}], text_for_approval=text)
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            for m in self.store.messages_after(before, 20):
+                if m["role"] != "agent":
+                    continue
+                if m["kind"] == "text" and m["text"]:
+                    return m["text"]
+                if m["kind"] == "choices":
+                    return m["text"] + " Réponds dans l'app."
+                if m["kind"] in ("whatsapp", "options"):
+                    return "C'est prêt, regarde dans l'app."
+            time.sleep(0.7)
+        return "Je m'en occupe, je te réponds dans l'app."
 
     # --------------------------------------------------------- sondage de secours
     def poll_once(self) -> None:

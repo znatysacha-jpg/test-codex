@@ -14,6 +14,8 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/contacts.readonly",
+    "https://www.googleapis.com/auth/contacts.other.readonly",
 ]
 MAX_BODY_CHARS = 20000
 
@@ -129,6 +131,33 @@ class Google:
             message["threadId"] = thread_id
         sent = self.gmail.users().messages().send(userId="me", body=message).execute()
         return {"message_id": sent["id"], "statut": "envoyé"}
+
+    # --- Contacts -------------------------------------------------------
+    def contacts_search(self, query: str) -> list[dict[str, Any]]:
+        from googleapiclient.discovery import build
+
+        people = build("people", "v1", credentials=self._creds(), cache_discovery=False)
+        mask = "names,phoneNumbers,emailAddresses,organizations"
+        # Google demande une requête vide de « préchauffage » avant la première recherche.
+        people.people().searchContacts(query="", readMask=mask, pageSize=1).execute()
+        found = people.people().searchContacts(query=query, readMask=mask, pageSize=10).execute().get("results", [])
+        try:
+            others = people.otherContacts().search(query=query, readMask="names,phoneNumbers,emailAddresses", pageSize=5).execute()
+            found += others.get("results", [])
+        except Exception:
+            pass
+        out = []
+        for r in found:
+            p = r.get("person", {})
+            out.append(
+                {
+                    "nom": (p.get("names") or [{}])[0].get("displayName", ""),
+                    "telephones": [n.get("value") for n in p.get("phoneNumbers", []) if n.get("value")],
+                    "emails": [e.get("value") for e in p.get("emailAddresses", []) if e.get("value")],
+                    "entreprise": (p.get("organizations") or [{}])[0].get("name", ""),
+                }
+            )
+        return out
 
     # --- Agenda ---------------------------------------------------------
     def calendar_list(self, time_min: str, time_max: str, max_results: int = 50) -> list[dict[str, Any]]:

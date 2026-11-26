@@ -12,7 +12,39 @@ from typing import Any
 from .google_tools import Google, GoogleNotConfigured
 
 NEEDS_APPROVAL = {"gmail_send", "calendar_create", "demander_validation"}
+# Outils qui affichent quelque chose à l'utilisateur (carte) au lieu d'appeler un service.
+PRESENTATION = {"preparer_whatsapp", "proposer_options"}
 DEFAULT_APPROVAL_OPTIONS = ["✅ Valider", "❌ Refuser"]
+
+
+def presentation_card(name: str, data: dict[str, Any]) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    """Renvoie (type de carte, contenu de la carte, résultat pour l'agent)."""
+    from .channels import whatsapp_link
+
+    if name == "preparer_whatsapp":
+        numero = str(data.get("numero", "")).strip()
+        message = str(data.get("message", "")).strip()
+        if not numero or not message:
+            raise ToolError("Il faut un numéro et un message.")
+        card = {"nom": data.get("nom", ""), "numero": numero, "message": message, "lien": whatsapp_link(numero, message)}
+        return "whatsapp", card, {"statut": "message proposé à l'utilisateur : il l'ouvre dans WhatsApp et l'envoie lui-même."}
+    if name == "proposer_options":
+        options = []
+        for opt in (data.get("options") or [])[:6]:
+            lien = str(opt.get("lien", ""))
+            options.append(
+                {
+                    "titre": str(opt.get("titre", ""))[:120],
+                    "details": str(opt.get("details", ""))[:400],
+                    "prix": str(opt.get("prix", ""))[:40],
+                    "lien": lien if lien.startswith("https://") else "",
+                }
+            )
+        if not options:
+            raise ToolError("Aucune option à présenter.")
+        card = {"titre": str(data.get("titre", "Options"))[:200], "options": options}
+        return "options", card, {"statut": f"{len(options)} options présentées à l'utilisateur."}
+    raise ToolError(f"Outil inconnu : {name}")
 
 
 class ToolError(Exception):
@@ -65,6 +97,8 @@ def execute(name: str, data: dict[str, Any], google: Google) -> dict[str, Any] |
             return google.gmail_draft(data["to"], data["subject"], data["body"], data.get("cc", ""), data.get("thread_id", ""))
         if name == "gmail_send":
             return google.gmail_send(data["to"], data["subject"], data["body"], data.get("cc", ""), data.get("thread_id", ""))
+        if name == "contacts_search":
+            return google.contacts_search(data["query"])
         if name == "calendar_list":
             return google.calendar_list(data["time_min"], data["time_max"], data.get("max_results", 50))
         if name == "calendar_create":

@@ -7,8 +7,11 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import logging
+import uuid
 from typing import Optional
+from urllib.parse import quote
 
 import httpx
 
@@ -56,8 +59,62 @@ class Channel:
     def send_file(self, filename: str, data: bytes, caption: str = "") -> None:  # pragma: no cover
         raise NotImplementedError
 
+    def send_card(self, kind: str, data: dict) -> None:
+        """Carte riche (message WhatsApp prêt, options de réservation). Par défaut : rendu en texte avec liens."""
+        self.send_text(card_as_text(kind, data))
+
     def typing(self) -> None:
         pass
+
+
+def whatsapp_link(number: str, message: str) -> str:
+    digits = "".join(c for c in number if c.isdigit())
+    if digits.startswith("0") and len(digits) == 10:  # numéro français 06… -> 336…
+        digits = "33" + digits[1:]
+    return f"https://wa.me/{digits}?text={quote(message)}"
+
+
+def card_as_text(kind: str, data: dict) -> str:
+    if kind == "whatsapp":
+        return (
+            f"💬 Message WhatsApp prêt pour {data.get('nom', '')} :\n\n{data.get('message', '')}\n\n"
+            f"Touche le lien pour l'ouvrir dans WhatsApp, puis envoie :\n{data.get('lien', '')}"
+        )
+    if kind == "options":
+        lines = [str(data.get("titre", ""))]
+        for i, opt in enumerate(data.get("options", []), 1):
+            lines.append("")
+            lines.append(f"{i}. {opt.get('titre', '')}" + (f" · {opt['prix']}" if opt.get("prix") else ""))
+            if opt.get("details"):
+                lines.append(str(opt["details"]))
+            if opt.get("lien"):
+                lines.append(str(opt["lien"]))
+        return "\n".join(lines).strip()
+    return json.dumps(data, ensure_ascii=False)
+
+
+class AppChannel(Channel):
+    """L'app iPhone (artefact claude.ai) : les messages sont gardés ici et lus par l'app via le connecteur."""
+
+    name = "app"
+
+    def __init__(self, store):
+        self.store = store
+
+    def send_text(self, text: str) -> None:
+        if text.strip():
+            self.store.add_message("agent", "text", text.strip(), channel=self.name)
+
+    def send_choices(self, text: str, options: list[str], pending_id: str) -> None:
+        self.store.add_message("agent", "choices", text, {"options": options, "validation_id": pending_id}, channel=self.name)
+
+    def send_file(self, filename: str, data: bytes, caption: str = "") -> None:
+        file_id = uuid.uuid4().hex[:12]
+        self.store.put_file(file_id, filename, data)
+        self.store.add_message("agent", "file", caption, {"file_id": file_id, "filename": filename, "taille": len(data)}, channel=self.name)
+
+    def send_card(self, kind: str, data: dict) -> None:
+        self.store.add_message("agent", kind, "", data, channel=self.name)
 
 
 class Telegram(Channel):

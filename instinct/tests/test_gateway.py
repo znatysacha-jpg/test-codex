@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from gateway import tools  # noqa: E402
 from gateway.bridge import Bridge  # noqa: E402
-from gateway.channels import Channel, WhatsApp, split_text  # noqa: E402
+from gateway.channels import AppChannel, Channel, WhatsApp, split_text, whatsapp_link  # noqa: E402
 from gateway.config import Settings  # noqa: E402
 from gateway.store import Store  # noqa: E402
 
@@ -298,7 +298,9 @@ def test_fichiers_de_configuration_valides():
     cfg = yaml.safe_load(front)
     custom = {t["name"] for t in cfg["tools"] if t["type"] == "custom"}
     assert tools.NEEDS_APPROVAL <= custom
-    assert custom == {"gmail_search", "gmail_read", "gmail_draft", "gmail_send", "calendar_list", "calendar_create", "demander_validation"}
+    assert tools.PRESENTATION <= custom
+    assert custom == {"gmail_search", "gmail_read", "gmail_draft", "gmail_send", "calendar_list", "calendar_create",
+                      "demander_validation", "contacts_search", "preparer_whatsapp", "proposer_options"}
     assert cfg["model"]["id"] == "claude-opus-5-5"
     assert "Règles de sécurité" in body
     env = yaml.safe_load((root / "agents/instinct-perso/environment.yaml").read_text())
@@ -307,3 +309,116 @@ def test_fichiers_de_configuration_valides():
         _, front, body = dep.read_text().split("---", 2)
         d = yaml.safe_load(front)
         assert d["schedule"]["timezone"] == "Europe/Paris" and body.strip().startswith("[Tâche planifiée]")
+
+
+# ------------------------------------------------------------- app, cartes, Siri
+@pytest.fixture
+def with_app(setup):
+    bridge, client, channel, google = setup
+    app_channel = AppChannel(bridge.store)
+    bridge.channels["app"] = app_channel
+    return bridge, client, channel, app_channel
+
+
+def test_carte_whatsapp_envoyee_a_l_app_et_a_telegram(with_app):
+    bridge, client, telegram, _ = with_app
+    sid = bridge.main_session()
+    client.beta.sessions.events.history[sid] = [
+        ev(id="w1", type="agent.custom_tool_use", name="preparer_whatsapp",
+           input={"nom": "Julie", "numero": "06 12 34 56 78", "message": "J'arrive dans 10 min !"}),
+        ev(id="i9", type="session.status_idle", stop_reason=NS(type="requires_action", event_ids=["w1"])),
+    ]
+    bridge.process_idle(sid)
+    card = [m for m in bridge.store.messages_after(0) if m["kind"] == "whatsapp"][0]
+    assert card["data"]["lien"].startswith("https://wa.me/33612345678?text=J%27arrive")
+    assert "wa.me/33612345678" in telegram.texts[-1]
+    result = json.loads(client.beta.sessions.events.sent[-1][1][0]["content"][0]["text"])
+    assert "l'envoie lui-même" in result["statut"]
+
+
+def test_options_de_reservation_filtrent_les_liens_non_https(with_app):
+    bridge, client, _, _ = with_app
+    sid = bridge.main_session()
+    client.beta.sessions.events.history[sid] = [
+        ev(id="o1", type="agent.custom_tool_use", name="proposer_options", input={"titre": "Hôtels à Lyon", "options": [
+            {"titre": "Hôtel A", "prix": "120 €", "lien": "https://booking.com/a"},
+            {"titre": "Hôtel B", "prix": "95 €", "lien": "javascript:alert(1)"},
+        ]}),
+        ev(id="i10", type="session.status_idle", stop_reason=NS(type="requires_action", event_ids=["o1"])),
+    ]
+    bridge.process_idle(sid)
+    card = [m for m in bridge.store.messages_after(0) if m["kind"] == "options"][0]
+    assert [o["lien"] for o in card["data"]["options"]] == ["https://booking.com/a", ""]
+
+
+def test_validation_visible_dans_l_app_et_resolue_une_seule_fois(with_app):
+    bridge, client, telegram, _ = with_app
+    sid = bridge.main_session()
+    client.beta.sessions.events.history[sid] = [
+        ev(id="v1", type="agent.custom_tool_use", name="demander_validation",
+           input={"question": "Je confirme Chez Paul jeudi 20h pour 4 ?", "options": ["Confirmer", "Autre créneau", "Annuler"]}),
+        ev(id="i11", type="session.status_idle", stop_reason=NS(type="requires_action", event_ids=["v1"])),
+    ]
+    bridge.process_idle(sid)
+    in_app = [m for m in bridge.store.messages_after(0) if m["kind"] == "choices"][0]
+    assert telegram.choices[0][2] == in_app["data"]["validation_id"]
+    assert bridge.resolve(in_app["data"]["validation_id"], 0) == "Confirmer"
+    assert bridge.resolve(telegram.choices[0][2], 2) == "Déjà traité."  # clic tardif depuis Telegram
+    result = json.loads(client.beta.sessions.events.sent[-1][1][0]["content"][0]["text"])
+    assert result == {"choix": "Confirmer", "index": 0}
+
+
+def test_historique_de_l_app(with_app):
+    bridge, client, _, app_channel = with_app
+    bridge.handle_user_input("telegram", [{"type": "text", "text": "réserve chez Paul"}], text_for_approval="réserve chez Paul")
+    app_channel.send_text("Je regarde les disponibilités.")
+    msgs = bridge.store.messages_after(0)
+    assert [(m["role"], m["text"]) for m in msgs] == [("user", "réserve chez Paul"), ("agent", "Je regarde les disponibilités.")]
+    assert bridge.store.messages_after(msgs[0]["id"])[0]["text"] == "Je regarde les disponibilités."
+
+
+def test_lien_whatsapp():
+    assert whatsapp_link("+33 6 12 34 56 78", "Salut") == "https://wa.me/33612345678?text=Salut"
+    assert whatsapp_link("0612345678", "a b") == "https://wa.me/33612345678?text=a%20b"
+
+
+def _app(**extra):
+    from fastapi.testclient import TestClient
+
+    from gateway.app import build
+
+    s = Settings(agent_id="", db_path=":memory:", **extra)
+    app, bridge = build(s, client=FakeClient())
+    return TestClient(app), bridge
+
+
+def test_siri_exige_le_jeton_et_renvoie_la_reponse():
+    http, bridge = _app(siri_token="tok")
+    assert http.post("/siri", json={"texte": "salut"}).status_code == 403
+    assert http.post("/siri", json={"texte": "salut"}, headers={"Authorization": "Bearer faux"}).status_code == 403
+
+    def fake_input(channel, content, text_for_approval=""):
+        bridge.store.add_message("user", "text", text_for_approval, channel=channel)
+        bridge.channels["app"].send_text("Tu as 2 rendez-vous demain.")
+
+    bridge.handle_user_input = fake_input
+    r = http.post("/siri", json={"texte": "qu'est-ce que j'ai demain ?"}, headers={"Authorization": "Bearer tok"})
+    assert r.json() == {"reponse": "Tu as 2 rendez-vous demain."}
+
+
+def test_connecteur_mcp_pour_l_app():
+    with_secret, bridge = _app(mcp_secret="s3cr3t")
+    H = {"accept": "application/json, text/event-stream", "mcp-protocol-version": "2025-06-18"}
+    with with_secret as http:
+        assert http.post("/mcp/autre/", json={}, headers=H).status_code == 404
+        tools_list = http.post("/mcp/s3cr3t/", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, headers=H).json()
+        names = {t["name"] for t in tools_list["result"]["tools"]}
+        assert {"envoyer", "messages", "repondre", "nouvelle_conversation", "arreter", "memoire_liste", "memoire_lire",
+                "fichier", "statut"} <= names
+        bridge.channels["app"].send_text("Bonjour !")
+        call = {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "messages", "arguments": {"apres": 0}}}
+        result = http.post("/mcp/s3cr3t/", json=call, headers=H).json()["result"]
+        payload = json.loads(result["content"][0]["text"])
+        assert payload["messages"][-1]["text"] == "Bonjour !"
+    sans_secret, _ = _app()
+    assert sans_secret.post("/mcp/s3cr3t/", json={}, headers=H).status_code == 404

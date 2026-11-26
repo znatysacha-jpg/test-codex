@@ -5,7 +5,10 @@
 # C'est le réglage le plus sûr : même si une page piégée tente de détourner
 # l'agent, il ne peut pas envoyer vos données vers un site inconnu.
 #
-# Pour une recherche web sans limite, remplacez le bloc networking par :
+# Conséquence : l'agent ne peut pas ouvrir le site propre d'un restaurant ou d'un
+# hôtel absent de la liste (il passe alors au plan B : lien, e-mail ou WhatsApp).
+#
+# Pour une recherche web et des réservations sans limite, remplacez le bloc networking par :
 #   networking: {type: unrestricted}
 # Contrepartie : le conteneur peut alors joindre n'importe quel site, donc une
 # page piégée pourrait pousser l'agent à y envoyer le contenu de sa mémoire.
@@ -43,7 +46,33 @@ config:
       - "*.legifrance.gouv.fr"
       - "*.cnil.fr"
       - "*.bpifrance.fr"
+      # Réservation de restaurants
+      - "*.thefork.fr"
+      - "*.thefork.com"
+      - "*.lafourchette.com"
+      - "*.zenchef.com"
+      - "*.guestonline.io"
+      - "*.guestonline.fr"
+      - "*.opentable.fr"
+      - "*.opentable.com"
+      - "*.sevenrooms.com"
+      - "*.covermanager.com"
+      - "*.formitable.com"
+      - "*.tripadvisor.fr"
+      - "*.michelin.com"
+      - "*.lefooding.com"
+      # Navigateur de l'agent (téléchargement de Chromium par Playwright)
+      - cdn.playwright.dev
+      - playwright.download.prss.microsoft.com
+      - playwright.azureedge.net
       # Voyages, sorties, rendez-vous
+      - "*.trainline.fr"
+      - "*.ouigo.com"
+      - "*.skyscanner.fr"
+      - "*.kayak.fr"
+      - "*.expedia.fr"
+      - "*.hotels.com"
+      - "*.all.accor.com"
       - "*.sncf-connect.com"
       - "*.airfrance.fr"
       - "*.booking.com"
