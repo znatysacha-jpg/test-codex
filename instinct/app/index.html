@@ -1,0 +1,552 @@
+<title>Instinct perso</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout : une app de messagerie à une main — en-tête fin, fil au centre, barre de saisie et onglets en bas. */
+:root {
+  --bg: #f3f5f6;
+  --surface: #ffffff;
+  --surface-2: #e8eef0;
+  --ink: #142124;
+  --muted: #5b6b6f;
+  --line: #d5dfe2;
+  --accent: #0d6b66;
+  --accent-ink: #ffffff;
+  --accent-soft: #d7ecea;
+  --user: #142124;
+  --user-ink: #f3f5f6;
+  --wa: #128c4a;
+  --warn: #9a5b00;
+  --warn-soft: #fbecd3;
+  --danger: #a3302a;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Instrument Sans", -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1415; --surface: #152022; --surface-2: #1c2a2c; --ink: #e5eeef; --muted: #93a6a9; --line: #29393b;
+    --accent: #4fc2b8; --accent-ink: #062321; --accent-soft: #173836; --user: #e5eeef; --user-ink: #0d1415;
+    --wa: #3fcf80; --warn: #f0b35a; --warn-soft: #3a2c14; --danger: #ff8a80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1415; --surface: #152022; --surface-2: #1c2a2c; --ink: #e5eeef; --muted: #93a6a9; --line: #29393b;
+  --accent: #4fc2b8; --accent-ink: #062321; --accent-soft: #173836; --user: #e5eeef; --user-ink: #0d1415;
+  --wa: #3fcf80; --warn: #f0b35a; --warn-soft: #3a2c14; --danger: #ff8a80; color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--body); -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; }
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a { color: var(--accent); }
+
+.app { height: 100%; display: flex; flex-direction: column; max-width: 720px; margin: 0 auto; }
+.top {
+  display: flex; align-items: center; gap: 10px;
+  padding-block: 12px 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--line); background: var(--bg);
+}
+.mark { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); display: grid; place-items: center; flex: none; }
+.mark svg { width: 18px; height: 18px; fill: none; stroke: var(--accent-ink); stroke-width: 2; stroke-linecap: round; }
+.top h1 { font: 700 19px/1 var(--display); letter-spacing: -0.01em; margin: 0; }
+.status { margin-left: auto; font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.dot.ok { background: var(--accent); }
+.dot.warn { background: var(--warn); }
+
+main { flex: 1; min-height: 0; position: relative; }
+.view { position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding-block: 14px 18px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.view[hidden] { display: none !important; }
+
+/* Fil de discussion */
+.thread { display: flex; flex-direction: column; gap: 10px; }
+.msg { max-width: 86%; padding: 9px 13px; border-radius: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg.agent { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 6px; }
+.msg.user { align-self: flex-end; background: var(--user); color: var(--user-ink); border-bottom-right-radius: 6px; }
+.meta { font-size: 11.5px; color: var(--muted); align-self: center; margin-top: 4px; }
+.card { align-self: stretch; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.card .label { font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.card .q { white-space: pre-wrap; overflow-wrap: anywhere; }
+.card.ask { border-color: var(--warn); background: var(--warn-soft); }
+.card.ask .label { color: var(--warn); }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 8px 14px; font-weight: 600; min-height: 40px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.wa { background: var(--wa); border-color: var(--wa); color: #fff; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.done-note { font-size: 13px; color: var(--muted); }
+.wa-preview { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.opt { border-top: 1px solid var(--line); padding-top: 10px; display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; align-items: start; }
+.opt:first-of-type { border-top: 0; padding-top: 0; }
+.opt h3 { margin: 0; font: 600 15px/1.3 var(--body); min-width: 0; }
+.opt .price { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.opt p { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: 13.5px; }
+.opt .go { grid-column: 1 / -1; justify-self: start; text-decoration: none; }
+.typing { align-self: flex-start; display: flex; gap: 4px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
+.typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: blink 1.2s infinite; }
+.typing i:nth-child(2) { animation-delay: .2s } .typing i:nth-child(3) { animation-delay: .4s }
+@keyframes blink { 0%, 80%, 100% { opacity: .25 } 40% { opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .typing i { animation: none; opacity: .6 } }
+
+/* Écran d'accueil quand le connecteur n'est pas encore branché */
+.setup { display: flex; flex-direction: column; gap: 14px; max-width: 560px; }
+.setup h2, .panel h2 { font: 700 22px/1.2 var(--display); margin: 4px 0 0; text-wrap: balance; letter-spacing: -0.01em; }
+.setup p, .panel p { margin: 0; color: var(--muted); }
+.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; }
+.steps li::marker { font-weight: 700; color: var(--accent); }
+code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: var(--surface-2); padding: 2px 6px; border-radius: 6px; overflow-wrap: anywhere; }
+.banner { border-radius: 12px; padding: 10px 12px; background: var(--warn-soft); color: var(--ink); font-size: 14px; }
+
+/* Saisie */
+.composer { border-top: 1px solid var(--line); background: var(--bg);
+  padding-block: 8px; padding-left: max(12px, env(safe-area-inset-left, 0px)); padding-right: max(12px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 8px; }
+.chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.chips::-webkit-scrollbar { display: none; }
+.chip { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 12px; font-size: 13.5px; }
+.row { display: flex; gap: 8px; align-items: flex-end; }
+.row textarea { flex: 1; min-width: 0; resize: none; max-height: 140px; border: 1px solid var(--line); background: var(--surface); border-radius: 20px; padding: 9px 14px; line-height: 1.4; }
+.send { width: 42px; height: 42px; flex: none; border-radius: 50%; border: 0; background: var(--accent); display: grid; place-items: center; }
+.send svg { width: 20px; height: 20px; fill: var(--accent-ink); }
+.send:disabled { opacity: .45; }
+
+/* Onglets */
+nav.tabs { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); background: var(--surface);
+  padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+nav.tabs button { border: 0; background: none; padding: 8px 4px 9px; display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 11.5px; color: var(--muted); }
+nav.tabs svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+nav.tabs button[aria-selected="true"] { color: var(--accent); font-weight: 600; }
+.badge { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--warn); color: #fff; font-size: 10.5px; line-height: 16px; font-weight: 700; }
+
+/* Panneaux */
+.panel { display: flex; flex-direction: column; gap: 14px; }
+.list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.item { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-top: 1px solid var(--line); background: none; border-left: 0; border-right: 0; border-bottom: 0; text-align: left; width: 100%; }
+.item:first-child { border-top: 0; }
+.item .grow { flex: 1; min-width: 0; }
+.item .t { font-weight: 600; overflow-wrap: anywhere; }
+.item .s { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.stage { font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); white-space: nowrap; }
+.stage.won { background: var(--accent); color: var(--accent-ink); }
+.stage.lost { background: var(--surface-2); color: var(--muted); }
+.doc { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; font-size: 14px; }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; }
+.kv span:nth-child(even) { font-weight: 600; text-align: right; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.empty { color: var(--muted); text-align: center; padding: 28px 8px; }
+.err { color: var(--danger); font-size: 13.5px; }
+</style>
+
+<div class="app">
+  <header class="top">
+    <div class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 14c3-7 13-7 16 0"/><path d="M12 7V4"/><path d="M3 18h18"/></svg></div>
+    <h1>Instinct perso</h1>
+    <div class="status" id="status"><span class="dot" id="dot"></span><span id="statusText">Connexion…</span></div>
+  </header>
+
+  <main>
+    <section class="view" id="view-chat" aria-label="Discussion">
+      <div class="setup" id="setup" hidden></div>
+      <div class="thread" id="thread"></div>
+    </section>
+    <section class="view panel" id="view-crm" aria-label="Prospection" hidden></section>
+    <section class="view panel" id="view-mem" aria-label="Mémoire" hidden></section>
+    <section class="view panel" id="view-set" aria-label="Réglages" hidden></section>
+  </main>
+
+  <div class="composer" id="composer">
+    <div class="chips" id="chips"></div>
+    <form class="row" id="form">
+      <textarea id="input" rows="1" placeholder="Demande-moi quelque chose…" aria-label="Message"></textarea>
+      <button class="send" id="sendBtn" type="submit" aria-label="Envoyer"><svg viewBox="0 0 24 24"><path d="M3.4 20.4 21 12 3.4 3.6l.1 6.5L15 12l-11.5 1.9z"/></svg></button>
+    </form>
+  </div>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-view="chat"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg><span>Discussion</span></button>
+    <button role="tab" aria-selected="false" data-view="crm"><svg viewBox="0 0 24 24"><path d="M3 6h18M6 12h12M10 18h4"/></svg><span>Prospection</span></button>
+    <button role="tab" aria-selected="false" data-view="mem"><svg viewBox="0 0 24 24"><path d="M6 3h9l3 3v15H6z"/><path d="M9 11h6M9 15h6"/></svg><span>Mémoire</span></button>
+    <button role="tab" aria-selected="false" data-view="set"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg><span>Réglages</span></button>
+  </nav>
+</div>
+
+<script>
+(() => {
+  const SERVER = "Instinct perso";
+  const CHIPS = [
+    ["Mon briefing", "Fais-moi le point : agenda d'aujourd'hui, e-mails importants et relances à faire."],
+    ["Réserver un resto", "Réserve-moi un restaurant "],
+    ["Écrire sur WhatsApp", "Écris un message WhatsApp à "],
+    ["Hôtel / train", "Trouve-moi "],
+    ["Prospects", "Trouve-moi 10 entreprises à prospecter dans "],
+    ["Préparer un 1:1", "Prépare mon prochain point individuel avec "],
+  ];
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  const safeUrl = (u) => (typeof u === "string" && u.startsWith("https://")) ? u : "";
+
+  let mcp = null, downloads = null, connected = false;
+  let lastId = 0, fastUntil = 0, timer = null, waiting = false, sending = false;
+  const rendered = new Map();
+
+  // ---------------------------------------------------------------- appels
+  async function call(tool, input) {
+    const res = await mcp.callTool(SERVER, tool, input || {}, { cache: false });
+    return res.payload ?? {};
+  }
+  function explain(err) {
+    const code = err && err.code;
+    if (code === "server_not_connected" || code === "selection_required") return "setup";
+    if (code === "needs_reauth") return "Reconnecte « " + SERVER + " » dans claude.ai › Réglages › Connecteurs.";
+    if (code === "not_in_manifest" || code === "approval_required" || code === "not_granted") return "Autorise le connecteur « " + SERVER + " » pour cette app (menu Autorisations de l'artefact).";
+    if (code === "server_unavailable") return "Ta passerelle ne répond pas pour l'instant. Je réessaie.";
+    if (code === "tool_error") return "L'agent a renvoyé une erreur : " + (err.message || "");
+    return "Problème de connexion (" + (code || "inconnu") + ").";
+  }
+  function setStatus(kind, text) { $("dot").className = "dot " + (kind || ""); $("statusText").textContent = text; }
+
+  // ----------------------------------------------------------- écran d'accueil
+  function showSetup(reason) {
+    connected = false;
+    setStatus("warn", "À brancher");
+    const box = $("setup"); box.hidden = false; box.replaceChildren();
+    box.append(el("h2", null, "Branche ton agent à cette app"));
+    box.append(el("p", null, "L'app parle à ton agent par un connecteur claude.ai. Il se branche une seule fois :"));
+    const ol = el("ol", "steps");
+    const li1 = el("li"); li1.append("Déploie la passerelle (dossier ", el("code", null, "instinct/"), " du dépôt, voir le README).");
+    const li2 = el("li"); li2.append("Dans claude.ai › Réglages › Connecteurs, ajoute un connecteur personnalisé nommé exactement ", el("code", null, SERVER), " avec l'adresse ", el("code", null, "https://<ta-passerelle>/mcp/<MCP_SECRET>/"), ".");
+    const li3 = el("li"); li3.append("Reviens ici et autorise le connecteur quand Claude te le demande.");
+    ol.append(li1, li2, li3);
+    box.append(ol);
+    if (reason && reason !== "setup") box.append(el("p", "err", reason));
+    const retry = el("button", "btn primary", "Réessayer");
+    retry.type = "button"; retry.onclick = () => boot();
+    const row = el("div", "actions"); row.append(retry); box.append(row);
+  }
+
+  // ------------------------------------------------------------ fil de messages
+  function bubble(m) {
+    if (m.kind === "text") return el("div", "msg " + (m.role === "user" ? "user" : "agent"), m.text);
+    if (m.kind === "choices") return choiceCard(m);
+    if (m.kind === "whatsapp") return whatsappCard(m);
+    if (m.kind === "options") return optionsCard(m);
+    if (m.kind === "file") return fileCard(m);
+    return el("div", "msg agent", m.text || "");
+  }
+  function choiceCard(m) {
+    const d = m.data || {};
+    const card = el("div", "card ask");
+    card.append(el("div", "label", "À valider"), el("div", "q", m.text));
+    const row = el("div", "choices");
+    (d.options || []).forEach((label, i) => {
+      const b = el("button", "btn" + (i === 0 ? " primary" : ""), label);
+      b.type = "button";
+      b.disabled = d.ouverte === false;
+      b.onclick = () => answer(d.validation_id, i, card);
+      row.append(b);
+    });
+    card.append(row);
+    if (d.ouverte === false) card.append(el("div", "done-note", "Déjà traité."));
+    return card;
+  }
+  async function answer(id, index, card) {
+    card.querySelectorAll("button").forEach((b) => (b.disabled = true));
+    try {
+      const r = await call("repondre", { validation_id: id, choix: index });
+      card.append(el("div", "done-note", "→ " + (r.note || "Envoyé")));
+      card.classList.remove("ask");
+      fastPoll();
+    } catch (e) {
+      card.querySelectorAll("button").forEach((b) => (b.disabled = false));
+      card.append(el("div", "err", explain(e)));
+    }
+  }
+  function whatsappCard(m) {
+    const d = m.data || {};
+    const card = el("div", "card");
+    card.append(el("div", "label", "Message WhatsApp pour " + (d.nom || "")), el("div", "wa-preview", d.message || ""));
+    const row = el("div", "actions");
+    const link = safeUrl(d.lien);
+    if (link) {
+      const a = el("a", "btn wa", "Ouvrir dans WhatsApp");
+      a.href = link; a.target = "_blank"; a.rel = "noopener";
+      row.append(a);
+    }
+    const copy = el("button", "btn", "Copier le texte");
+    copy.type = "button";
+    copy.onclick = async () => {
+      try { await navigator.clipboard.writeText(d.message || ""); copy.textContent = "Copié"; }
+      catch { copy.textContent = "Sélectionne le texte au-dessus"; }
+    };
+    row.append(copy);
+    card.append(row, el("div", "done-note", "Rien n'est envoyé tant que tu n'appuies pas sur Envoyer dans WhatsApp."));
+    return card;
+  }
+  function optionsCard(m) {
+    const d = m.data || {};
+    const card = el("div", "card");
+    card.append(el("div", "label", d.titre || "Options"));
+    (d.options || []).forEach((o) => {
+      const row = el("div", "opt");
+      row.append(el("h3", null, o.titre || ""), el("span", "price", o.prix || ""));
+      if (o.details) row.append(el("p", null, o.details));
+      const link = safeUrl(o.lien);
+      if (link) { const a = el("a", "btn primary go", "Voir et réserver"); a.href = link; a.target = "_blank"; a.rel = "noopener"; row.append(a); }
+      card.append(row);
+    });
+    return card;
+  }
+  function fileCard(m) {
+    const d = m.data || {};
+    const card = el("div", "card");
+    card.append(el("div", "label", "Fichier"), el("div", "q", d.filename || "fichier"));
+    if (m.text) card.append(el("div", "done-note", m.text));
+    const b = el("button", "btn primary", downloads ? "Enregistrer" : "Disponible aussi dans Telegram");
+    b.type = "button"; b.disabled = !downloads;
+    b.onclick = async () => {
+      b.disabled = true;
+      try {
+        const f = await call("fichier", { file_id: d.file_id });
+        if (f.erreur) throw { code: "tool_error", message: f.erreur };
+        const bin = Uint8Array.from(atob(f.base64), (c) => c.charCodeAt(0));
+        await downloads.save({ filename: f.nom || d.filename, data: bin });
+        b.textContent = "Enregistré";
+      } catch (e) {
+        b.disabled = false;
+        if (e && e.code === "declined") return;
+        card.append(el("div", "err", e && e.code === "rejected_extension" ? "Ce type de fichier ne s'enregistre pas ici." : explain(e)));
+      }
+    };
+    card.append(b);
+    return card;
+  }
+  function appendMessages(list) {
+    const thread = $("thread");
+    const atBottom = isNearBottom();
+    $("typing")?.remove();
+    for (const m of list) {
+      if (rendered.has(m.id)) continue;
+      const node = bubble(m);
+      rendered.set(m.id, node);
+      thread.append(node);
+      lastId = Math.max(lastId, m.id);
+      if (m.role === "agent") waiting = false;
+    }
+    if (waiting) { const t = el("div", "typing"); t.id = "typing"; t.append(el("i"), el("i"), el("i")); thread.append(t); }
+    if (atBottom || list.length) scrollToBottom();
+  }
+  function isNearBottom() { const v = $("view-chat"); return v.scrollHeight - v.scrollTop - v.clientHeight < 120; }
+  function scrollToBottom() { const v = $("view-chat"); v.scrollTop = v.scrollHeight; }
+
+  async function refresh() {
+    if (!connected) return;
+    try {
+      const p = await call("messages", { apres: lastId, limite: lastId ? 100 : 60 });
+      appendMessages(p.messages || []);
+      updateBadge(p.en_attente || 0);
+      setStatus("ok", waiting ? "Il travaille…" : "Connecté");
+      if (!lastId && !(p.messages || []).length) welcome();
+    } catch (e) {
+      const why = explain(e);
+      if (why === "setup") return showSetup();
+      setStatus("warn", "Hors ligne");
+    }
+  }
+  function welcome() {
+    if ($("thread").children.length) return;
+    const card = el("div", "card");
+    card.append(el("div", "label", "Prêt"), el("div", "q", "Écris-moi comme à un assistant : un e-mail à préparer, un resto à réserver, un message WhatsApp à écrire, des prospects à trouver. Je te demande toujours ton accord avant d'envoyer, de réserver ou d'acheter."));
+    $("thread").append(card);
+  }
+  function schedule() {
+    clearTimeout(timer);
+    const fast = Date.now() < fastUntil;
+    timer = setTimeout(async () => { await refresh(); schedule(); }, document.hidden ? 60000 : fast ? 2500 : 20000);
+  }
+  function fastPoll() { fastUntil = Date.now() + 4 * 60 * 1000; schedule(); setTimeout(refresh, 600); }
+  function updateBadge(n) {
+    const tab = document.querySelector('[data-view="chat"]');
+    tab.querySelector(".badge")?.remove();
+    if (n > 0) tab.querySelector("span").after(el("span", "badge", String(n)));
+  }
+
+  // ------------------------------------------------------------------ envoi
+  async function send(text) {
+    text = text.trim();
+    if (!text || sending) return;
+    if (!connected) { showSetup(); return; }
+    sending = true; $("sendBtn").disabled = true;
+    try {
+      await call("envoyer", { texte: text });
+      $("input").value = ""; autosize();
+      waiting = true;
+      appendMessages([]);
+      fastPoll();
+    } catch (e) {
+      const why = explain(e);
+      if (why === "setup") showSetup(); else { const n = el("div", "err", why); $("thread").append(n); scrollToBottom(); }
+    } finally {
+      sending = false; $("sendBtn").disabled = false;
+    }
+  }
+  function autosize() { const t = $("input"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 140) + "px"; }
+
+  // -------------------------------------------------------------- onglets
+  function show(view) {
+    document.querySelectorAll("nav.tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.view === view)));
+    for (const v of ["chat", "crm", "mem", "set"]) $("view-" + v).hidden = v !== view;
+    $("composer").hidden = view !== "chat";
+    if (view === "crm") loadCrm();
+    if (view === "mem") loadMemory();
+    if (view === "set") loadSettings();
+    if (view === "chat") scrollToBottom();
+  }
+
+  function parsePipeline(md) {
+    const rows = [];
+    for (const line of md.split("\n")) {
+      if (!line.trim().startsWith("|") || /^\|\s*-/.test(line.trim())) continue;
+      const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+      if (cells[0] === "Entreprise" || !cells[0]) continue;
+      rows.push({ entreprise: cells[0], contact: cells[1] || "", etape: cells[2] || "", dernier: cells[3] || "", prochaine: cells[4] || "" });
+    }
+    return rows;
+  }
+  async function loadCrm() {
+    const v = $("view-crm"); v.replaceChildren(el("h2", null, "Prospection"));
+    if (!connected) { v.append(el("p", null, "Branche le connecteur pour voir ton pipeline.")); return; }
+    v.append(el("p", null, "Ton pipeline, tenu à jour par l'agent."));
+    try {
+      const r = await call("memoire_lire", { chemin: "/crm/pipeline.md" });
+      const rows = parsePipeline(r.contenu || "");
+      if (!rows.length) {
+        v.append(el("div", "empty", "Aucun prospect pour l'instant. Demande-moi « Trouve-moi 10 entreprises à prospecter dans… »."));
+      } else {
+        const counts = {};
+        rows.forEach((x) => { counts[x.etape] = (counts[x.etape] || 0) + 1; });
+        const kv = el("div", "kv");
+        Object.entries(counts).forEach(([k, n]) => kv.append(el("span", null, k || "sans étape"), el("span", null, String(n))));
+        v.append(kv);
+        const list = el("div", "list");
+        rows.forEach((x) => {
+          const b = el("button", "item"); b.type = "button";
+          const g = el("div", "grow"); g.append(el("div", "t", x.entreprise), el("div", "s", [x.contact, x.prochaine].filter(Boolean).join(" · ")));
+          const st = x.etape.toLowerCase();
+          b.append(g, el("span", "stage" + (st.includes("gagn") ? " won" : st.includes("perdu") || st.includes("ne plus") ? " lost" : ""), x.etape || "—"));
+          b.onclick = () => { show("chat"); $("input").value = "Où en est-on avec " + x.entreprise + " ? Prépare la prochaine action."; autosize(); $("input").focus(); };
+          list.append(b);
+        });
+        v.append(list);
+      }
+    } catch (e) { v.append(el("p", "err", explain(e) === "setup" ? "Connecteur non branché." : explain(e))); }
+    const a = el("div", "actions");
+    const b1 = el("button", "btn primary", "Relances du jour"); b1.type = "button";
+    b1.onclick = () => { show("chat"); send("Quelles relances de prospection dois-je faire aujourd'hui ? Prépare les brouillons."); };
+    a.append(b1); v.append(a);
+  }
+
+  async function loadMemory(path) {
+    const v = $("view-mem"); v.replaceChildren(el("h2", null, "Mémoire"));
+    if (!connected) { v.append(el("p", null, "Branche le connecteur pour voir ce que l'agent sait de toi.")); return; }
+    if (path) {
+      const back = el("button", "btn", "← Tous les fichiers"); back.type = "button"; back.onclick = () => loadMemory();
+      v.append(back, el("div", "s mono", path));
+      try { const r = await call("memoire_lire", { chemin: path }); v.append(el("div", "doc", r.contenu || "(vide)")); }
+      catch (e) { v.append(el("p", "err", explain(e))); }
+      const edit = el("button", "btn primary", "Corriger avec l'agent"); edit.type = "button";
+      edit.onclick = () => { show("chat"); $("input").value = "Dans ta mémoire (" + path + "), corrige : "; autosize(); $("input").focus(); };
+      const row = el("div", "actions"); row.append(edit); v.append(row);
+      return;
+    }
+    v.append(el("p", null, "Ce que l'agent a retenu sur toi, tes contacts, tes projets et ton équipe."));
+    try {
+      const r = await call("memoire_liste", { prefixe: "/" });
+      const files = r.fichiers || [];
+      if (!files.length) { v.append(el("div", "empty", "La mémoire est vide.")); return; }
+      const list = el("div", "list");
+      files.forEach((f) => {
+        const b = el("button", "item"); b.type = "button";
+        const g = el("div", "grow"); g.append(el("div", "t", f.chemin));
+        b.append(g, el("span", "s", Math.max(1, Math.round((f.taille || 0) / 1024)) + " Ko"));
+        b.onclick = () => loadMemory(f.chemin);
+        list.append(b);
+      });
+      v.append(list);
+    } catch (e) { v.append(el("p", "err", explain(e) === "setup" ? "Connecteur non branché." : explain(e))); }
+  }
+
+  async function loadSettings() {
+    const v = $("view-set"); v.replaceChildren(el("h2", null, "Réglages"));
+    if (connected) {
+      try {
+        const s = await call("statut", {});
+        const kv = el("div", "kv");
+        const yes = (b) => (b ? "Branché" : "Non branché");
+        [["Agent", s.agent], ["Gmail, agenda, contacts", s.google], ["Telegram (notifications)", s.telegram], ["WhatsApp", s.whatsapp], ["Skills du dépôt", s.skills]]
+          .forEach(([k, b]) => kv.append(el("span", null, k), el("span", null, yes(b))));
+        kv.append(el("span", null, "Validations en attente"), el("span", null, String(s.en_attente || 0)));
+        v.append(kv);
+      } catch (e) { v.append(el("p", "err", explain(e))); }
+      const a = el("div", "actions");
+      const n = el("button", "btn", "Nouvelle conversation"); n.type = "button";
+      n.onclick = async () => { try { await call("nouvelle_conversation", {}); show("chat"); fastPoll(); } catch (e) { v.append(el("p", "err", explain(e))); } };
+      const s = el("button", "btn", "Arrêter l'agent"); s.type = "button";
+      s.onclick = async () => { try { await call("arreter", {}); s.textContent = "Arrêté"; } catch (e) { v.append(el("p", "err", explain(e))); } };
+      a.append(n, s); v.append(a);
+    } else {
+      v.append(el("p", null, "Le connecteur n'est pas encore branché (voir l'onglet Discussion)."));
+    }
+    v.append(el("h2", null, "« Dis Siri, Instinct »"));
+    v.append(el("p", null, "Crée un raccourci dans l'app Raccourcis de l'iPhone :"));
+    const ol = el("ol", "steps");
+    [
+      "Nouveau raccourci, nommé « Instinct ».",
+      "Action « Dicter le texte » (langue : français).",
+      "Action « Obtenir le contenu de l'URL » : adresse https://<ta-passerelle>/siri, méthode POST, en-tête Authorization = « Bearer <SIRI_TOKEN> », corps JSON avec le champ texte = Texte dicté.",
+      "Action « Obtenir la valeur du dictionnaire » : clé reponse.",
+      "Action « Énoncer le texte » avec cette valeur.",
+      "Dis « Dis Siri, Instinct », puis ta demande. Les validations et les cartes arrivent ici.",
+    ].forEach((t) => ol.append(el("li", null, t)));
+    v.append(ol);
+  }
+
+  // ----------------------------------------------------------------- démarrage
+  async function boot() {
+    $("setup").hidden = true;
+    setStatus("", "Connexion…");
+    const use = window.claude && typeof window.claude.use === "function" ? (n) => window.claude.use(n) : async () => null;
+    mcp = await use("mcp");
+    if (!downloads) downloads = await use("downloads");
+    if (!mcp) { showSetup("Cette vue ne permet pas d'utiliser les connecteurs. Ouvre l'app dans claude.ai ou l'app Claude."); return; }
+    try {
+      const list = await mcp.listTools(SERVER);
+      const info = (list.servers || []).find((x) => x.server === SERVER);
+      if (!info) return showSetup();
+      if (info.authStatus === "needs_reauth") return showSetup(explain({ code: "needs_reauth" }));
+    } catch (e) { return showSetup(explain(e)); }
+    connected = true;
+    await refresh();
+    schedule();
+  }
+
+  // ----------------------------------------------------------------- interactions
+  CHIPS.forEach(([label, text]) => {
+    const c = el("button", "chip", label); c.type = "button";
+    c.onclick = () => { const t = $("input"); t.value = text; autosize(); t.focus(); if (!text.endsWith(" ")) send(text); };
+    $("chips").append(c);
+  });
+  $("form").addEventListener("submit", (e) => { e.preventDefault(); send($("input").value); });
+  $("input").addEventListener("input", autosize);
+  $("input").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing && window.matchMedia("(pointer: fine)").matches) { e.preventDefault(); send($("input").value); } });
+  document.querySelectorAll("nav.tabs button").forEach((b) => (b.onclick = () => show(b.dataset.view)));
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { refresh(); schedule(); } });
+
+  boot();
+})();
+</script>

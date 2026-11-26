@@ -31,5 +31,7 @@ services:
       - {key: GOOGLE_CLIENT_ID, sync: false}
       - {key: GOOGLE_CLIENT_SECRET, sync: false}
       - {key: GOOGLE_REFRESH_TOKEN, sync: false}
+      - {key: MCP_SECRET, generateValue: true}
+      - {key: SIRI_TOKEN, generateValue: true}
       - {key: DEFAULT_CHANNEL, value: telegram}
       - {key: SESSION_BUDGET_CENTS, value: "0"}
