@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-STATE_FILE = ROOT / "state.json"
+STATE_FILE = Path(os.environ.get("STATE_PATH") or ROOT / "state.json")
 
 
 def _env(name: str, default: str = "") -> str:
@@ -57,6 +57,11 @@ class Settings:
     mcp_secret: str = ""
     siri_token: str = ""
 
+    # Mise en route automatique
+    public_base_url: str = ""          # adresse publique de la passerelle (Render la fournit seul)
+    auto_provision: bool = True        # crée / met à jour l'agent chez Anthropic au démarrage
+    deployment_budget_cents: int = 200
+
     # Divers
     db_path: str = str(ROOT / "data" / "instinct.db")
     poll_seconds: int = 90
@@ -102,6 +107,9 @@ def load_settings() -> Settings:
         google_refresh_token=_env("GOOGLE_REFRESH_TOKEN"),
         mcp_secret=_env("MCP_SECRET"),
         siri_token=_env("SIRI_TOKEN"),
+        public_base_url=(_env("PUBLIC_BASE_URL") or _env("RENDER_EXTERNAL_URL")).rstrip("/"),
+        auto_provision=_env("AUTO_PROVISION", "1") not in ("0", "false", "non"),
+        deployment_budget_cents=int(_env("DEPLOYMENT_BUDGET_CENTS", "200") or 0),
         db_path=_env("DB_PATH", str(ROOT / "data" / "instinct.db")),
         poll_seconds=int(_env("POLL_SECONDS", "90") or 90),
         timezone=_env("TIMEZONE", "Europe/Paris"),

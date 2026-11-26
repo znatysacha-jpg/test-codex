@@ -1,90 +1,18 @@
 # Environnement d'exécution de l'agent (conteneur hébergé par Anthropic).
 #
-# Réseau "limited" : l'agent et ses outils web n'atteignent QUE les sites listés
-# ci-dessous (web_search ne renvoie que des résultats de ces sites).
-# C'est le réglage le plus sûr : même si une page piégée tente de détourner
-# l'agent, il ne peut pas envoyer vos données vers un site inconnu.
+# Réseau "unrestricted" : l'agent peut ouvrir n'importe quel site (recherche web,
+# réservation sur le site propre d'un restaurant ou d'un hôtel, etc.).
 #
-# Conséquence : l'agent ne peut pas ouvrir le site propre d'un restaurant ou d'un
-# hôtel absent de la liste (il passe alors au plan B : lien, e-mail ou WhatsApp).
-#
-# Pour une recherche web et des réservations sans limite, remplacez le bloc networking par :
-#   networking: {type: unrestricted}
-# Contrepartie : le conteneur peut alors joindre n'importe quel site, donc une
-# page piégée pourrait pousser l'agent à y envoyer le contenu de sa mémoire.
-# (Vos jetons Google et GitHub ne sont jamais dans le conteneur, dans les deux cas.)
+# Contrepartie assumée : une page piégée pourrait tenter de pousser l'agent à envoyer
+# le contenu de sa mémoire vers un site inconnu. Ce qui reste protégé dans tous les cas :
+# - vos jetons Google (gardés par la passerelle, jamais dans ce conteneur) ;
+# - le jeton GitHub (injecté par un proxy d'Anthropic, jamais lisible ici) ;
+# - vos moyens de paiement (l'agent ne paie jamais).
+# Pour revenir à une liste de sites autorisés, voir l'historique git de ce fichier
+# (réseau "limited" + allowed_hosts).
 name: instinct-perso-env
-description: Conteneur de l'agent personnel, réseau limité aux sites utiles.
+description: Conteneur de l'agent personnel, accès complet au web.
 config:
   type: cloud
   networking:
-    type: limited
-    allow_package_managers: true
-    allowed_hosts:
-      # Entreprises et prospection (France)
-      - annuaire-entreprises.data.gouv.fr
-      - recherche-entreprises.api.gouv.fr
-      - "*.data.gouv.fr"
-      - "*.insee.fr"
-      - "*.societe.com"
-      - "*.pappers.fr"
-      - "*.pagesjaunes.fr"
-      - "*.infogreffe.fr"
-      - "*.bodacc.fr"
-      # Actualité, référence
-      - "*.wikipedia.org"
-      - "*.lemonde.fr"
-      - "*.lesechos.fr"
-      - "*.lefigaro.fr"
-      - "*.bfmtv.com"
-      - "*.maddyness.com"
-      - "*.frenchweb.fr"
-      - "*.service-public.fr"
-      - "*.economie.gouv.fr"
-      - "*.urssaf.fr"
-      - "*.impots.gouv.fr"
-      - "*.legifrance.gouv.fr"
-      - "*.cnil.fr"
-      - "*.bpifrance.fr"
-      # Réservation de restaurants
-      - "*.thefork.fr"
-      - "*.thefork.com"
-      - "*.lafourchette.com"
-      - "*.zenchef.com"
-      - "*.guestonline.io"
-      - "*.guestonline.fr"
-      - "*.opentable.fr"
-      - "*.opentable.com"
-      - "*.sevenrooms.com"
-      - "*.covermanager.com"
-      - "*.formitable.com"
-      - "*.tripadvisor.fr"
-      - "*.michelin.com"
-      - "*.lefooding.com"
-      # Navigateur de l'agent (téléchargement de Chromium par Playwright)
-      - cdn.playwright.dev
-      - playwright.download.prss.microsoft.com
-      - playwright.azureedge.net
-      # Voyages, sorties, rendez-vous
-      - "*.trainline.fr"
-      - "*.ouigo.com"
-      - "*.skyscanner.fr"
-      - "*.kayak.fr"
-      - "*.expedia.fr"
-      - "*.hotels.com"
-      - "*.all.accor.com"
-      - "*.sncf-connect.com"
-      - "*.airfrance.fr"
-      - "*.booking.com"
-      - "*.airbnb.fr"
-      - "*.thefork.fr"
-      - "*.doctolib.fr"
-      - "*.ratp.fr"
-      - "*.google.com"
-      - "*.openstreetmap.org"
-      # Outils et documentation tech
-      - "*.github.com"
-      - "*.githubusercontent.com"
-      - "*.stackoverflow.com"
-      - "*.mozilla.org"
-      - "*.python.org"
+    type: unrestricted

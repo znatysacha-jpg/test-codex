@@ -99,7 +99,10 @@ def build_connector(bridge: Bridge) -> MCPServer:
     @srv.tool(description="État de l'agent : services connectés et validations en attente.")
     def statut() -> dict[str, Any]:
         s = bridge.s
+        from .setup import google_link
+
         return {
+            "lien_google": None if s.google_enabled else google_link(store, s),
             "agent": bool(s.agent_id),
             "google": s.google_enabled,
             "telegram": s.telegram_enabled,

@@ -696,6 +696,14 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 14px; 
         row("chat", "green", "WhatsApp", s.whatsapp);
         row("repo", "indigo", "Skills du dépôt", s.skills);
         g.append(cell({ icon: "hand", color: "orange", title: "Validations en attente", value: String(s.en_attente || 0) }));
+        const glink = safeUrl(s.lien_google);
+        if (glink) {
+          const a = el("a", "cell action"); a.href = glink; a.target = "_blank"; a.rel = "noopener";
+          a.append(glyph("mail", "red"));
+          const gr = el("div", "grow"); gr.append(el("div", "t", "Connecter Google"), el("div", "s", "Gmail, agenda et contacts · lien valable 30 min"));
+          a.append(gr, chevron());
+          g.append(a);
+        }
       } catch (e) { g.append(el("p", "err", explain(e))); }
       box.append(g);
       box.append(el("div", "section-title", "Conversation"));

@@ -16,7 +16,7 @@ from typing import Any, Optional
 
 import anthropic
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from mcp.server.transport_security import TransportSecuritySettings
 
 from .bridge import Bridge
@@ -24,6 +24,7 @@ from .channels import AppChannel, Channel, Telegram, WhatsApp
 from .connector import build_connector
 from .config import Settings, load_settings
 from .google_tools import Google
+from .setup import bootstrap, check_link_token, google_flow, google_link, setup_message
 from .store import Store
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s : %(message)s")
@@ -46,6 +47,8 @@ def build(settings: Optional[Settings] = None, client: Optional[anthropic.Anthro
     s = settings or load_settings()
     client = client or anthropic.Anthropic()
     store = Store(s.db_path)
+    if not s.google_refresh_token:
+        s.google_refresh_token = store.get("google_refresh_token") or ""  # connecté depuis le lien
     channels: dict[str, Channel] = {"app": AppChannel(store)}
     if s.telegram_enabled:
         channels["telegram"] = Telegram(s)
@@ -56,9 +59,14 @@ def build(settings: Optional[Settings] = None, client: Optional[anthropic.Anthro
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        # Sondage de secours : rattrape les sessions en pause si un webhook ou un flux a été manqué.
-        if s.agent_id and s.poll_seconds > 0:
-            threading.Thread(target=bridge.poll_forever, daemon=True).start()
+        def startup() -> None:
+            # Crée / met à jour l'agent chez Anthropic et branche Telegram, puis lance le sondage de secours
+            # qui rattrape les sessions en pause si un webhook ou un flux a été manqué.
+            bootstrap(bridge, client, s)
+            if s.agent_id and s.poll_seconds > 0:
+                bridge.poll_forever()
+
+        threading.Thread(target=startup, daemon=True).start()
         if connector is not None:
             async with connector.session_manager.run():
                 yield
@@ -92,6 +100,38 @@ def build(settings: Optional[Settings] = None, client: Optional[anthropic.Anthro
         reply = await asyncio.to_thread(bridge.ask_and_wait, text)
         return {"reponse": reply}
 
+    # ------------------------------------------------------------- Google (connexion par lien)
+    @app.get("/google/connect")
+    def google_connect(t: str = "") -> RedirectResponse:
+        if not check_link_token(store, t):
+            raise HTTPException(status_code=403, detail="Lien expiré : redemande-le avec /google")
+        flow = google_flow(s)
+        url, state = flow.authorization_url(access_type="offline", prompt="consent", include_granted_scopes="true")
+        store.set("google_oauth_state", state)
+        store.set("google_oauth_verifier", getattr(flow, "code_verifier", None) or "")
+        return RedirectResponse(url)
+
+    @app.get("/google/callback", response_class=HTMLResponse)
+    def google_callback(state: str = "", code: str = "") -> str:
+        expected = store.get("google_oauth_state") or ""
+        if not expected or not hmac.compare_digest(expected, state) or not code:
+            raise HTTPException(status_code=403)
+        flow = google_flow(s, state=state)
+        verifier = store.get("google_oauth_verifier")
+        if verifier:
+            flow.code_verifier = verifier
+        flow.fetch_token(code=code)
+        refresh = flow.credentials.refresh_token
+        store.delete("google_oauth_state")
+        store.delete("google_oauth_verifier")
+        if not refresh:
+            return "<p>Google n'a pas renvoyé de jeton durable. Retire l'accès sur myaccount.google.com puis recommence.</p>"
+        store.set("google_refresh_token", refresh)
+        s.google_refresh_token = refresh
+        bridge.google = Google(s)
+        bridge.notify("", "Google est connecté : je peux maintenant lire tes e-mails, ton agenda et tes contacts.")
+        return "<meta name=viewport content='width=device-width'><p style='font:17px -apple-system,sans-serif;padding:24px'>Google est connecté. Tu peux fermer cette page.</p>"
+
     @app.get("/health")
     def health() -> dict:
         return {
@@ -102,14 +142,22 @@ def build(settings: Optional[Settings] = None, client: Optional[anthropic.Anthro
             "skills_repo": bool(s.github_repo_url and s.github_token),
             "app_connector": connector is not None,
             "siri": bool(s.siri_token),
+            "adresse_publique": bool(s.public_base_url),
         }
 
     # ------------------------------------------------------------- commandes
     def command(channel: str, text: str) -> bool:
         cmd = text.strip().split()[0].lower() if text.strip() else ""
         ch = channels[channel]
-        if cmd in ("/start", "/aide", "/help"):
+        if cmd in ("/aide", "/help"):
             ch.send_text(HELP)
+        elif cmd in ("/start", "/reglages", "/config"):
+            ch.send_text(HELP)
+            if channel == "telegram":  # canal privé du propriétaire : on peut y donner les clés
+                ch.send_text(setup_message(store, s))
+        elif cmd == "/google":
+            link = google_link(store, s)
+            ch.send_text(f"Connecte Google ici (valable 30 min) :\n{link}" if link else "Renseigne GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET et l'adresse publique de la passerelle.")
         elif cmd == "/new":
             bridge.reset()
             ch.send_text("C'est noté, on repart sur une nouvelle conversation. Je garde ma mémoire.")

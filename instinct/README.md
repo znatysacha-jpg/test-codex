@@ -30,7 +30,7 @@ Votre agent personnel, sur le modèle d'Instinct. Vous lui parlez depuis une **a
 ```
 
 - `agents/instinct-perso/agent.md` : la personnalité, les règles et les outils de l'agent.
-- `agents/instinct-perso/environment.yaml` : son conteneur et les sites qu'il peut joindre.
+- `agents/instinct-perso/environment.yaml` : son conteneur (accès complet au web).
 - `deployments/` : les tâches automatiques. `memory_seed/` : sa mémoire de départ.
 - `gateway/` : la passerelle (FastAPI). `app/index.html` : l'app iPhone.
 - `../.claude/skills/reservation-restaurant/` : le savoir-faire de réservation et son navigateur.
@@ -45,6 +45,7 @@ Votre agent personnel, sur le modèle d'Instinct. Vous lui parlez depuis une **a
 | Payer | Jamais. Il s'arrête à la page de paiement et vous envoie le lien |
 | Obéir à un e-mail ou une page web | Interdit : le contenu externe est traité comme une donnée |
 | Lire vos mots de passe Google | Impossible : les jetons Google restent dans la passerelle, jamais dans le conteneur de l'agent |
+| Divulguer sa mémoire via une page piégée | Risque réduit mais non nul avec l'accès complet au web : l'agent traite les pages comme des données, et la plateforme évalue chaque action. Ne lui confiez pas de secret (il refuse de les mémoriser) |
 | Être utilisé par quelqu'un d'autre | Seuls votre identifiant Telegram, votre numéro WhatsApp, le secret du connecteur et le jeton Siri sont acceptés |
 
 ## Ce que ça coûte
@@ -55,90 +56,65 @@ Votre agent personnel, sur le modèle d'Instinct. Vous lui parlez depuis une **a
 
 ---
 
-## Installation (environ 45 minutes, une seule fois)
+## Installation (environ 30 minutes, une seule fois)
 
-### 1. Clé Anthropic
+Vous créez 4 comptes ou clés, vous cliquez sur « Deploy », et la passerelle fait le reste : elle crée l'agent chez Anthropic, sa mémoire, ses tâches planifiées, et branche Telegram.
 
-Sur https://platform.claude.com, créez une clé API (Settings › API keys) et ajoutez un moyen de paiement.
+### 1. Les clés à préparer
 
-### 2. Accès au dépôt (pour les skills)
+| Clé | Où la créer |
+|---|---|
+| `ANTHROPIC_API_KEY` | https://platform.claude.com › Settings › API keys (ajoutez un moyen de paiement) |
+| `TELEGRAM_BOT_TOKEN` | Dans Telegram, écrivez à **@BotFather** › `/newbot` |
+| `OWNER_TELEGRAM_ID` | Dans Telegram, écrivez à **@userinfobot** : il répond votre numéro d'identifiant |
+| `GITHUB_TOKEN` | GitHub › Settings › Developer settings › Fine-grained tokens : dépôt `test-codex` uniquement, **Contents : Read-only** (il apporte les skills) |
+| `GOOGLE_CLIENT_ID` et `GOOGLE_CLIENT_SECRET` | Voir l'étape 2 |
 
-Sur GitHub › Settings › Developer settings › Fine-grained tokens : créez un jeton limité au dépôt `test-codex`, avec la permission **Contents : Read-only**. Ce sera `GITHUB_TOKEN`.
-
-Les skills doivent être sur la branche indiquée par `GITHUB_BRANCH` : fusionnez la pull request, ou mettez temporairement `GITHUB_BRANCH=claude/instinct-ia-project-rgw3vl`.
-
-### 3. Google (Gmail, Agenda, Contacts)
+### 2. Google (Gmail, Agenda, Contacts)
 
 1. https://console.cloud.google.com › créez un projet.
 2. « API et services » › activez **Gmail API**, **Google Calendar API** et **People API**.
-3. « Écran de consentement OAuth » : type Externe, ajoutez votre adresse comme utilisateur test.
-4. « Identifiants » › Créer › ID client OAuth › **Application de bureau** : notez l'ID et le secret.
-5. Sur votre ordinateur :
-   ```bash
-   cd instinct
-   pip install -r requirements.txt
-   export GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=...
-   python scripts/google_auth.py
-   ```
-   Un navigateur s'ouvre. Acceptez, puis copiez la ligne `GOOGLE_REFRESH_TOKEN=...` affichée.
+3. « Écran de consentement OAuth » : type **Externe**, puis **Publier l'application** (état « En production »). En état « Test », Google coupe l'accès au bout de 7 jours. Google affichera un avertissement « application non vérifiée » : c'est normal pour une app personnelle, cliquez sur « Paramètres avancés » › « Continuer ».
+4. « Identifiants » › Créer › ID client OAuth › **Application Web**. Ajoutez l'URI de redirection `https://<adresse-de-la-passerelle>/google/callback`. Vous connaîtrez l'adresse à l'étape 3 et pourrez revenir l'ajouter.
 
-### 4. Créer l'agent chez Anthropic
+### 3. Déployer
 
-```bash
-export ANTHROPIC_API_KEY=... GITHUB_REPO_URL=https://github.com/znatysacha-jpg/test-codex GITHUB_TOKEN=...
-python scripts/provision.py --dry-run   # vérifie
-python scripts/provision.py             # crée l'agent, son conteneur, sa mémoire et les 3 tâches planifiées
-```
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/znatysacha-jpg/test-codex)
 
-Gardez les trois lignes `AGENT_ID`, `ENVIRONMENT_ID` et `MEMORY_STORE_ID` affichées à la fin.
+1. Cliquez sur le bouton, connectez votre GitHub, puis collez les clés de l'étape 1. Les secrets techniques (`MCP_SECRET`, `SIRI_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`) sont générés automatiquement.
+2. Si les skills ne sont pas encore sur `main` (pull request non fusionnée), mettez `GITHUB_BRANCH=claude/instinct-ia-project-rgw3vl`.
+3. Attendez la fin du déploiement (environ 5 minutes). Render donne une adresse du type `https://instinct-perso-xxxx.onrender.com`. Ajoutez `…/google/callback` dans Google (étape 2.4) si ce n'est pas fait.
+4. Vérifiez `https://<adresse>/health` : `"ok": true` signifie que l'agent est créé chez Anthropic.
 
-### 5. Telegram (recommandé pour les notifications)
+### 4. Tout brancher depuis Telegram
 
-1. Dans Telegram, écrivez à **@BotFather** › `/newbot` › notez le jeton (`TELEGRAM_BOT_TOKEN`).
-2. Écrivez à **@userinfobot** pour connaître votre identifiant (`OWNER_TELEGRAM_ID`).
+Envoyez **`/start`** à votre bot. Il vous répond (et à vous seul) avec :
+- l'adresse du **connecteur** à ajouter dans claude.ai (pour l'app iPhone) ;
+- l'adresse et la clé pour le **raccourci Siri** ;
+- un **lien pour connecter Google**, valable 30 minutes (ou plus tard avec `/google`, ou depuis l'app › Réglages › Connecter Google).
 
-### 6. Déployer la passerelle sur Render
+### 5. L'app iPhone
 
-1. https://render.com › New › **Blueprint** › choisissez ce dépôt. Render lit `instinct/render.yaml`.
-2. Remplissez les variables demandées (voir `.env.example`). Render génère automatiquement **`MCP_SECRET`** et **`SIRI_TOKEN`** : vous les retrouverez dans l'onglet Environment.
-3. Une fois en ligne, notez l'adresse (`https://instinct-perso-xxxx.onrender.com`) et vérifiez `…/health`.
-4. Branchez Telegram : relancez `PUBLIC_BASE_URL=https://… TELEGRAM_BOT_TOKEN=… TELEGRAM_WEBHOOK_SECRET=… python scripts/provision.py --skip-deployments`, avec le même `TELEGRAM_WEBHOOK_SECRET` que sur Render.
+1. claude.ai › Réglages › **Connecteurs** › « Ajouter un connecteur personnalisé », nom **`Instinct perso`** (exactement), adresse reçue sur Telegram.
+2. Ouvrez https://claude.ai/artifact/XJ1tgyuKw1UainZUMREg2n et autorisez le connecteur quand Claude le demande.
+3. Sur l'iPhone : Partager › « Sur l'écran d'accueil ».
 
-### 7. Webhook Anthropic (pour les tâches planifiées)
+### 6. Siri
 
-Console Anthropic › Manage › **Webhooks** › ajoutez `https://<passerelle>/anthropic/webhook` avec les événements `session.status_idled`, `deployment_run.succeeded` et `deployment_run.failed`. Copiez le secret `whsec_…` dans `ANTHROPIC_WEBHOOK_SIGNING_KEY` sur Render.
+App Raccourcis › nouveau raccourci « Instinct » :
+1. « Dicter le texte » (français).
+2. « Obtenir le contenu de l'URL » : adresse `…/siri` reçue sur Telegram, méthode **POST**, en-tête `Authorization` = `Bearer …` (reçu sur Telegram), corps **JSON** avec `texte` = *Texte dicté*.
+3. « Obtenir la valeur du dictionnaire », clé `reponse`.
+4. « Énoncer le texte ».
 
-Sans webhook, tout fonctionne quand même, mais les tâches planifiées arrivent avec 1 à 2 minutes de retard (la passerelle vérifie toutes les 90 secondes).
+### 7. Facultatif
 
-### 8. L'app iPhone
+- **Webhook Anthropic** : console Anthropic › Manage › Webhooks, adresse `…/anthropic/webhook`, événements `session.status_idled`, `deployment_run.succeeded` et `deployment_run.failed`. Copiez le secret `whsec_…` dans `ANTHROPIC_WEBHOOK_SIGNING_KEY` sur Render. Sans lui, les tâches planifiées arrivent avec 1 à 2 minutes de retard.
+- **WhatsApp comme canal** : ⚠️ depuis le 15 janvier 2026, l'API WhatsApp Business interdit les assistants IA généralistes. Pour **écrire à vos contacts**, vous n'en avez pas besoin (carte « Ouvrir dans WhatsApp »). Sinon : app sur developers.facebook.com (produit WhatsApp), variables `WHATSAPP_*` et `OWNER_WHATSAPP_NUMBER`, webhook `…/whatsapp/webhook`.
 
-1. claude.ai › Réglages › **Connecteurs** › « Ajouter un connecteur personnalisé » :
-   - nom : **`Instinct perso`** (exactement ce nom),
-   - URL : `https://<passerelle>/mcp/<MCP_SECRET>/`.
-2. Ouvrez l'app : https://claude.ai/artifact/XJ1tgyuKw1UainZUMREg2n, puis autorisez le connecteur quand Claude le demande.
-3. Sur l'iPhone, ouvrez ce lien dans l'app Claude ou dans Safari, puis Partager › « Sur l'écran d'accueil ».
+### 8. Les premières minutes
 
-### 9. Siri
-
-Dans l'app Raccourcis :
-1. Nouveau raccourci « Instinct ».
-2. « Dicter le texte » (français).
-3. « Obtenir le contenu de l'URL » : `https://<passerelle>/siri`, méthode **POST**, en-tête `Authorization` = `Bearer <SIRI_TOKEN>`, corps **JSON** avec le champ `texte` = *Texte dicté*.
-4. « Obtenir la valeur du dictionnaire » pour la clé `reponse`.
-5. « Énoncer le texte ».
-
-Dites « Dis Siri, Instinct », puis votre demande. Siri lit la première réponse. Les validations et les cartes arrivent dans l'app et sur Telegram.
-
-### 10. WhatsApp comme canal (optionnel, à vos risques)
-
-⚠️ Depuis le 15 janvier 2026, les conditions de l'API WhatsApp Business **interdisent les assistants IA généralistes**, et un message envoyé plus de 24 h après votre dernier message exige un modèle validé par Meta. Pour **écrire à vos contacts**, vous n'en avez pas besoin : l'outil « message WhatsApp prêt » marche sans. Pour parler à l'agent *par* WhatsApp quand même : créez une app sur developers.facebook.com (produit WhatsApp), renseignez `WHATSAPP_*` et `OWNER_WHATSAPP_NUMBER`, puis déclarez le webhook `https://<passerelle>/whatsapp/webhook` avec le `WHATSAPP_VERIFY_TOKEN`.
-
-### 11. Les premières minutes
-
-Dites-lui :
-- « Je m'appelle …, mon téléphone pour les réservations est …, mon e-mail est … » (il l'enregistre dans sa mémoire).
-- Vos préférences : train ou avion, siège, quartiers, cuisine, allergies, budget.
-- Votre activité, vos clients cibles, votre équipe.
+Dites-lui votre nom, téléphone et e-mail pour les réservations, vos préférences (train ou avion, siège, quartiers, cuisine, allergies, budget), votre activité, vos clients cibles et votre équipe. Il les enregistre dans sa mémoire.
 
 ---
 
@@ -146,9 +122,9 @@ Dites-lui :
 
 | Pour… | Faire |
 |---|---|
-| Changer sa personnalité ou ses règles | Modifier `agents/instinct-perso/agent.md`, puis `python scripts/provision.py` (crée une nouvelle version) |
-| Changer les horaires des tâches | Modifier `deployments/*.md`, puis `python scripts/provision.py` |
-| Qu'il réserve sur **n'importe quel** site | Dans `environment.yaml`, remplacer le réseau par `{type: unrestricted}`. Plus capable, mais une page piégée pourrait alors pousser l'agent à envoyer le contenu de sa mémoire vers un site inconnu. Vos jetons Google et GitHub, eux, ne sont jamais exposés |
+| Changer sa personnalité ou ses règles | Modifier `agents/instinct-perso/agent.md` et pousser : au redéploiement, la passerelle met l'agent à jour (nouvelle version) |
+| Changer les horaires des tâches | Modifier `deployments/*.md` et pousser (mise à jour au redéploiement) |
+| Limiter les sites que l'agent peut ouvrir | Il a accès à **tout le web** (réservations sur n'importe quel site). Pour le restreindre : réseau `limited` + `allowed_hosts` dans `environment.yaml` (voir l'historique git), puis redéployer |
 | Repartir d'une conversation vierge | `/new` dans Telegram, ou Réglages › Nouvelle conversation dans l'app (la mémoire reste) |
 | L'arrêter net | `/stop`, ou Réglages › Arrêter l'agent |
 | Voir ce qu'il fait en direct | Console Anthropic › Sessions |
@@ -156,7 +132,7 @@ Dites-lui :
 ## Limites actuelles (à connaître)
 
 - **Paiements** : jamais faits par l'agent, il s'arrête au lien de paiement.
-- **Réservations de restaurant** : certains sites, comme TheFork, bloquent parfois les navigateurs automatiques. L'agent passe alors au plan B (lien, e-mail ou message WhatsApp) et vous le dit. Le site propre d'un restaurant n'est joignable qu'en réseau `unrestricted`.
+- **Réservations de restaurant** : certains sites, comme TheFork, bloquent parfois les navigateurs automatiques. L'agent passe alors au plan B (lien, e-mail ou message WhatsApp) et vous le dit.
 - **Messages vocaux** : pas encore compris sur Telegram et WhatsApp (utilisez la dictée du clavier ou Siri).
 - **Appels téléphoniques** à votre place : pas encore (possible plus tard avec un service de voix IA).
 - **WhatsApp** : l'agent prépare les messages pour vos contacts, il ne les envoie pas.
@@ -165,6 +141,6 @@ Dites-lui :
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest -q          # 26 tests, sans réseau ni clé
+python -m pytest -q          # 29 tests, sans réseau ni clé
 uvicorn gateway.app:create_app --factory --reload
 ```

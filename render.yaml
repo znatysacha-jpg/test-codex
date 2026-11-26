@@ -1,0 +1,45 @@
+# Déploiement en un clic de la passerelle de l'agent personnel (dossier instinct/).
+# Render > New > Blueprint > ce dépôt, ou le bouton « Deploy to Render » du README.
+# Les valeurs "sync: false" se saisissent dans Render, jamais dans ce fichier.
+# Au premier démarrage, la passerelle crée seule l'agent chez Anthropic et branche Telegram.
+services:
+  - type: web
+    name: instinct-perso
+    runtime: docker
+    rootDir: instinct
+    plan: starter            # le plan gratuit s'endort : l'agent ne répondrait plus
+    region: frankfurt
+    healthCheckPath: /health
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      # --- indispensables ---
+      - {key: ANTHROPIC_API_KEY, sync: false}
+      - {key: TELEGRAM_BOT_TOKEN, sync: false}
+      - {key: OWNER_TELEGRAM_ID, sync: false}
+      - {key: GITHUB_TOKEN, sync: false}
+      # --- Google : client OAuth « Application Web », redirection https://<adresse>/google/callback ---
+      - {key: GOOGLE_CLIENT_ID, sync: false}
+      - {key: GOOGLE_CLIENT_SECRET, sync: false}
+      # --- générés automatiquement ---
+      - {key: TELEGRAM_WEBHOOK_SECRET, generateValue: true}
+      - {key: MCP_SECRET, generateValue: true}
+      - {key: SIRI_TOKEN, generateValue: true}
+      # --- réglages ---
+      - {key: GITHUB_REPO_URL, value: https://github.com/znatysacha-jpg/test-codex}
+      - {key: GITHUB_BRANCH, value: main}
+      - {key: STATE_PATH, value: /data/state.json}
+      - {key: DB_PATH, value: /data/instinct.db}
+      - {key: AUTO_PROVISION, value: "1"}
+      - {key: DEFAULT_CHANNEL, value: telegram}
+      - {key: SESSION_BUDGET_CENTS, value: "0"}
+      - {key: DEPLOYMENT_BUDGET_CENTS, value: "200"}
+      # --- facultatifs ---
+      - {key: ANTHROPIC_WEBHOOK_SIGNING_KEY, sync: false}
+      - {key: WHATSAPP_TOKEN, sync: false}
+      - {key: WHATSAPP_PHONE_NUMBER_ID, sync: false}
+      - {key: WHATSAPP_APP_SECRET, sync: false}
+      - {key: WHATSAPP_VERIFY_TOKEN, generateValue: true}
+      - {key: OWNER_WHATSAPP_NUMBER, sync: false}

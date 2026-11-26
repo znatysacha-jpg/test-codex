@@ -276,7 +276,7 @@ def test_webhook_telegram_refuse_les_inconnus():
 
     from gateway.app import build
 
-    s = Settings(agent_id="", telegram_bot_token="123:abc", telegram_webhook_secret="s3cret", owner_telegram_id="42", db_path=":memory:")
+    s = Settings(agent_id="", telegram_bot_token="123:abc", telegram_webhook_secret="s3cret", owner_telegram_id="42", db_path=":memory:", auto_provision=False)
     app, bridge = build(s, client=FakeClient())
     calls = []
     bridge.handle_user_input = lambda *a, **k: calls.append(a)
@@ -387,7 +387,7 @@ def _app(**extra):
 
     from gateway.app import build
 
-    s = Settings(agent_id="", db_path=":memory:", **extra)
+    s = Settings(agent_id="", db_path=":memory:", auto_provision=False, **extra)
     app, bridge = build(s, client=FakeClient())
     return TestClient(app), bridge
 
@@ -422,3 +422,84 @@ def test_connecteur_mcp_pour_l_app():
         assert payload["messages"][-1]["text"] == "Bonjour !"
     sans_secret, _ = _app()
     assert sans_secret.post("/mcp/s3cr3t/", json={}, headers=H).status_code == 404
+
+
+# ------------------------------------------------------- mise en route automatique
+class FakeProvisionClient:
+    def __init__(self):
+        self.calls = []
+        mk = lambda prefix: (lambda *a, **k: (self.calls.append((prefix, a, k)), NS(id=f"{prefix}_1", version=1))[1])
+        import anthropic
+        self.conflict = anthropic.ConflictError
+        memories = NS(create=mk("mem"))
+        self.beta = NS(
+            environments=NS(create=mk("env"), update=mk("env_upd")),
+            memory_stores=NS(create=mk("memstore"), memories=memories),
+            agents=NS(create=mk("agent"), update=mk("agent_upd")),
+            deployments=NS(create=mk("depl"), update=mk("depl_upd")),
+        )
+
+
+def test_creation_puis_mise_a_jour_de_l_agent(tmp_path):
+    from gateway.provisioning import sync
+
+    client = FakeProvisionClient()
+    state_path = tmp_path / "state.json"
+    state = sync(client, state_path, repo_url="https://github.com/x/y", repo_token="t", log=lambda *_: None)
+    assert state["agent_id"] == "agent_1" and state["environment_id"] == "env_1" and state["memory_store_id"] == "memstore_1"
+    kinds = [c[0] for c in client.calls]
+    assert kinds.count("depl") == 3 and kinds.count("mem") >= 3
+    env_cfg = [c for c in client.calls if c[0] == "env"][0][2]["config"]
+    assert env_cfg["networking"]["type"] == "unrestricted"
+    agent_kwargs = [c for c in client.calls if c[0] == "agent"][0][2]
+    assert agent_kwargs["model"]["id"] == "claude-opus-5-5" and "Règles de sécurité" in agent_kwargs["system"]
+    depl = [c for c in client.calls if c[0] == "depl"][0][2]
+    assert {r["type"] for r in depl["resources"]} == {"memory_store", "github_repository"}
+    # deuxième démarrage : mises à jour, aucun doublon, mémoire jamais réécrite
+    client.calls.clear()
+    sync(client, state_path, log=lambda *_: None)
+    kinds = [c[0] for c in client.calls]
+    assert "env" not in kinds and "agent" not in kinds and "depl" not in kinds and "mem" not in kinds
+    assert kinds.count("depl_upd") == 3 and "agent_upd" in kinds
+
+
+def test_lien_google_a_usage_unique():
+    from gateway.setup import check_link_token, google_link
+
+    store = Store(":memory:")
+    s = Settings(public_base_url="https://passerelle.exemple", google_client_id="id", google_client_secret="sec")
+    link = google_link(store, s)
+    token = link.split("t=")[1]
+    assert link.startswith("https://passerelle.exemple/google/connect?t=")
+    assert not check_link_token(store, "faux")
+    assert check_link_token(store, token)
+    assert not check_link_token(store, token)  # déjà utilisé
+    assert google_link(store, Settings()) is None  # pas d'adresse publique
+
+
+def test_reglages_envoyes_seulement_sur_telegram():
+    from fastapi.testclient import TestClient
+
+    from gateway.app import build
+
+    s = Settings(telegram_bot_token="1:a", telegram_webhook_secret="w", owner_telegram_id="42", db_path=":memory:",
+                 auto_provision=False, public_base_url="https://p.exemple", mcp_secret="m3", siri_token="s1")
+    app, bridge = build(s, client=FakeClient())
+    sent = []
+    bridge.channels["telegram"].send_text = sent.append
+    http = TestClient(app)
+    r = http.post("/telegram/webhook", json={"message": {"from": {"id": 42}, "text": "/start"}}, headers={"X-Telegram-Bot-Api-Secret-Token": "w"})
+    assert r.status_code == 200
+    import time
+    for _ in range(50):
+        if len(sent) >= 2:
+            break
+        time.sleep(0.05)
+    assert "https://p.exemple/mcp/m3/" in sent[1] and "Bearer s1" in sent[1]
+    # depuis l'app (pas privée comme Telegram) : jamais de clés
+    app_texts = []
+    bridge.channels["app"].send_text = app_texts.append
+    assert http.post("/siri", json={"texte": "/start"}, headers={"Authorization": "Bearer s1"}).json() == {"reponse": "C'est fait."}
+    assert all("m3" not in t for t in app_texts)
+    # lien Google expiré ou faux
+    assert http.get("/google/connect?t=faux", follow_redirects=False).status_code == 403
