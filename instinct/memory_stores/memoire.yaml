@@ -1,0 +1,5 @@
+name: memoire
+description: >-
+  Mémoire durable de l'agent personnel : profil et préférences de l'utilisateur, contacts,
+  pipeline de prospection (crm/), projets (projets/), équipe (equipe/) et journal des actions
+  importantes (journal/). Un sujet par fichier Markdown. Ne contient jamais de secret.

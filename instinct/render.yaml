@@ -1,0 +1,35 @@
+# Déploiement en un clic sur Render (https://render.com) : New > Blueprint > ce dépôt.
+# Les valeurs "sync: false" sont à saisir dans le tableau de bord Render, jamais dans ce fichier.
+services:
+  - type: web
+    name: instinct-perso
+    runtime: docker
+    rootDir: instinct
+    plan: starter            # le plan gratuit s'endort : l'agent ne répondrait plus aux webhooks
+    healthCheckPath: /health
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - {key: ANTHROPIC_API_KEY, sync: false}
+      - {key: AGENT_ID, sync: false}
+      - {key: ENVIRONMENT_ID, sync: false}
+      - {key: MEMORY_STORE_ID, sync: false}
+      - {key: ANTHROPIC_WEBHOOK_SIGNING_KEY, sync: false}
+      - {key: GITHUB_REPO_URL, value: https://github.com/znatysacha-jpg/test-codex}
+      - {key: GITHUB_BRANCH, value: main}
+      - {key: GITHUB_TOKEN, sync: false}
+      - {key: TELEGRAM_BOT_TOKEN, sync: false}
+      - {key: TELEGRAM_WEBHOOK_SECRET, generateValue: true}
+      - {key: OWNER_TELEGRAM_ID, sync: false}
+      - {key: WHATSAPP_TOKEN, sync: false}
+      - {key: WHATSAPP_PHONE_NUMBER_ID, sync: false}
+      - {key: WHATSAPP_VERIFY_TOKEN, generateValue: true}
+      - {key: WHATSAPP_APP_SECRET, sync: false}
+      - {key: OWNER_WHATSAPP_NUMBER, sync: false}
+      - {key: GOOGLE_CLIENT_ID, sync: false}
+      - {key: GOOGLE_CLIENT_SECRET, sync: false}
+      - {key: GOOGLE_REFRESH_TOKEN, sync: false}
+      - {key: DEFAULT_CHANNEL, value: telegram}
+      - {key: SESSION_BUDGET_CENTS, value: "0"}

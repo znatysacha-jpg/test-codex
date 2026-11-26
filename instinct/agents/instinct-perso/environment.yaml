@@ -1,0 +1,61 @@
+# Environnement d'exécution de l'agent (conteneur hébergé par Anthropic).
+#
+# Réseau "limited" : l'agent et ses outils web n'atteignent QUE les sites listés
+# ci-dessous (web_search ne renvoie que des résultats de ces sites).
+# C'est le réglage le plus sûr : même si une page piégée tente de détourner
+# l'agent, il ne peut pas envoyer vos données vers un site inconnu.
+#
+# Pour une recherche web sans limite, remplacez le bloc networking par :
+#   networking: {type: unrestricted}
+# Contrepartie : le conteneur peut alors joindre n'importe quel site, donc une
+# page piégée pourrait pousser l'agent à y envoyer le contenu de sa mémoire.
+# (Vos jetons Google et GitHub ne sont jamais dans le conteneur, dans les deux cas.)
+name: instinct-perso-env
+description: Conteneur de l'agent personnel, réseau limité aux sites utiles.
+config:
+  type: cloud
+  networking:
+    type: limited
+    allow_package_managers: true
+    allowed_hosts:
+      # Entreprises et prospection (France)
+      - annuaire-entreprises.data.gouv.fr
+      - recherche-entreprises.api.gouv.fr
+      - "*.data.gouv.fr"
+      - "*.insee.fr"
+      - "*.societe.com"
+      - "*.pappers.fr"
+      - "*.pagesjaunes.fr"
+      - "*.infogreffe.fr"
+      - "*.bodacc.fr"
+      # Actualité, référence
+      - "*.wikipedia.org"
+      - "*.lemonde.fr"
+      - "*.lesechos.fr"
+      - "*.lefigaro.fr"
+      - "*.bfmtv.com"
+      - "*.maddyness.com"
+      - "*.frenchweb.fr"
+      - "*.service-public.fr"
+      - "*.economie.gouv.fr"
+      - "*.urssaf.fr"
+      - "*.impots.gouv.fr"
+      - "*.legifrance.gouv.fr"
+      - "*.cnil.fr"
+      - "*.bpifrance.fr"
+      # Voyages, sorties, rendez-vous
+      - "*.sncf-connect.com"
+      - "*.airfrance.fr"
+      - "*.booking.com"
+      - "*.airbnb.fr"
+      - "*.thefork.fr"
+      - "*.doctolib.fr"
+      - "*.ratp.fr"
+      - "*.google.com"
+      - "*.openstreetmap.org"
+      # Outils et documentation tech
+      - "*.github.com"
+      - "*.githubusercontent.com"
+      - "*.stackoverflow.com"
+      - "*.mozilla.org"
+      - "*.python.org"
