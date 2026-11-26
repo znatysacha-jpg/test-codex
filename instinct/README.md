@@ -11,6 +11,24 @@ Votre agent personnel, sur le modèle d'Instinct. Vous lui parlez depuis une **a
 - **Proactif** : briefing du matin, relances de prospection et revue de la semaine, envoyés automatiquement.
 - **Mémoire durable** : ce qu'il apprend sur vous, vos contacts, vos prospects et vos projets.
 
+## Sans rien installer (recommandé)
+
+Ouvrez **https://claude.ai/artifact/XJ1tgyuKw1UainZUMREg2n** dans l'app Claude sur l'iPhone, puis Partager › « Sur l'écran d'accueil ». C'est tout.
+
+| Il utilise… | Pour… |
+|---|---|
+| **Votre abonnement Claude** (modèle le plus capable, réglable) | Le cerveau de l'agent : comprendre, décider, rédiger |
+| **Votre connecteur Gmail** de claude.ai | Chercher, lire et préparer des brouillons d'e-mails |
+| **La base de données de l'app** (privée, réservée au propriétaire) | Mémoire, prospects, historique, missions |
+| **Des sessions Claude dans le cloud** (navigateur, web complet) | Recherches approfondies et réservations, avec notification push à la fin |
+| **Une tâche planifiée de votre compte** (Réglages › Briefing du matin) | Le briefing des jours ouvrés à 7h43, avec notification |
+
+À la première utilisation, Claude vous demande d'autoriser l'app à utiliser Claude, Gmail et les sessions cloud : un tap par autorisation. Si un connecteur demande d'être reconnecté, claude.ai vous le propose.
+
+Limites de ce mode : pas d'agenda tant que le connecteur Google Agenda n'est pas branché dans claude.ai, les e-mails partent depuis Gmail (l'app prépare des brouillons), et l'agent ne réagit que quand l'app est ouverte, sauf pour les missions et le briefing qui tournent dans le cloud.
+
+La version « passerelle » décrite plus bas (Telegram, Siri, envoi d'e-mails, agenda, Managed Agents) reste disponible pour aller plus loin.
+
 ## Comment c'est construit
 
 ```
