@@ -1,0 +1,18 @@
+# Environnement d'exécution de l'agent (conteneur hébergé par Anthropic).
+#
+# Réseau "unrestricted" : l'agent peut ouvrir n'importe quel site (recherche web,
+# réservation sur le site propre d'un restaurant ou d'un hôtel, etc.).
+#
+# Contrepartie assumée : une page piégée pourrait tenter de pousser l'agent à envoyer
+# le contenu de sa mémoire vers un site inconnu. Ce qui reste protégé dans tous les cas :
+# - vos jetons Google (gardés par la passerelle, jamais dans ce conteneur) ;
+# - le jeton GitHub (injecté par un proxy d'Anthropic, jamais lisible ici) ;
+# - vos moyens de paiement (l'agent ne paie jamais).
+# Pour revenir à une liste de sites autorisés, voir l'historique git de ce fichier
+# (réseau "limited" + allowed_hosts).
+name: instinct-perso-env
+description: Conteneur de l'agent personnel, accès complet au web.
+config:
+  type: cloud
+  networking:
+    type: unrestricted
