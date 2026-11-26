@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#3d9bff"/>
+      <stop offset="0.48" stop-color="#0a5fe0"/>
+      <stop offset="1" stop-color="#2b2fb8"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.42" r="0.55">
+      <stop offset="0" stop-color="#9fd0ff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#9fd0ff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0.2" y1="0.05" x2="0.8" y2="0.95">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.98"/>
+      <stop offset="0.55" stop-color="#e9f3ff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#bcd8ff" stop-opacity="0.85"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.75"/>
+      <stop offset="0.25" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="22"/>
+    </filter>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="22" stdDeviation="26" flood-color="#081a66" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <!-- fond : carré arrondi façon iOS, plein cadre (iOS applique son propre masque) -->
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#glow)"/>
+  <!-- halo derrière l'étincelle -->
+  <path d="M512 228 C540 400 624 484 796 512 C624 540 540 624 512 796 C484 624 400 540 228 512 C400 484 484 400 512 228 Z" fill="#7fc0ff" opacity="0.55" filter="url(#soft)"/>
+  <!-- étincelle en verre -->
+  <g filter="url(#shadow)">
+    <path d="M512 236 C538 404 620 486 788 512 C620 538 538 620 512 788 C486 620 404 538 236 512 C404 486 486 404 512 236 Z" fill="url(#glass)"/>
+    <path d="M512 236 C538 404 620 486 788 512 C620 538 538 620 512 788 C486 620 404 538 236 512 C404 486 486 404 512 236 Z" fill="none" stroke="#ffffff" stroke-opacity="0.9" stroke-width="6"/>
+  </g>
+  <!-- petite étincelle compagne -->
+  <path d="M742 236 C750 286 772 308 822 316 C772 324 750 346 742 396 C734 346 712 324 662 316 C712 308 734 286 742 236 Z" fill="#ffffff" opacity="0.92"/>
+  <!-- reflet spéculaire en haut, comme le verre d'iOS 26 -->
+  <rect width="1024" height="1024" fill="url(#rim)" opacity="0.35"/>
+</svg>

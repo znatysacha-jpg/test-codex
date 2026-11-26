@@ -1,5 +1,7 @@
 <title>Instinct perso</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<link rel="artifact-thumbnail" href="assets/thumb.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap">
@@ -262,6 +264,13 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 14px; 
 .links { display: flex; flex-direction: column; gap: 8px; padding: 0 16px 16px; }
 .live { white-space: pre-wrap; }
 .muted { color: var(--label-2); }
+.send.mic { background: var(--fill); color: var(--tint); box-shadow: none; }
+.send.listening { background: #ff3b30; color: #fff; animation: rec 1.2s var(--ease) infinite; }
+@keyframes rec { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,59,48,.45) } 50% { box-shadow: 0 0 0 8px rgba(255,59,48,0) } }
+.toast { position: absolute; left: 50%; bottom: calc(var(--dock-h) + 14px); transform: translateX(-50%); z-index: 20; max-width: calc(100% - 32px);
+  padding: 10px 16px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--label); text-align: center; }
+.steps-list { margin: 0; padding: 6px 18px 16px 38px; display: flex; flex-direction: column; gap: 8px; font-size: 15px; line-height: 1.4; }
+.steps-list li::marker { color: var(--tint); font-weight: 700; }
 </style>
 
 <div class="app">
@@ -290,7 +299,7 @@ code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 14px; 
       <button class="round glass" id="plus" type="button" aria-label="Suggestions" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
       <div class="input-wrap glass">
         <textarea id="input" rows="1" placeholder="Demande à Instinct" aria-label="Message à l'agent"></textarea>
-        <button class="send" id="sendBtn" type="submit" aria-label="Envoyer" disabled><svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+        <button class="send mic" id="sendBtn" type="submit" aria-label="Parler"><svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
       </div>
     </form>
     <nav class="tabs glass" role="tablist" aria-label="Sections">
@@ -389,6 +398,7 @@ RÈGLES DE SÉCURITÉ
 
   let sample = null, db = null, mcp = null;
   let busy = false, ctl = null;
+  let dict = null, tts = null, downloads = null, listening = false, spokenTurn = false, heard = "";
   let messages = [], memory = {}, prospects = [], missions = {}, cfg = {};
   const rendered = new Map();
 
@@ -544,6 +554,7 @@ RÈGLES DE SÉCURITÉ
       });
       live.remove(); dots.remove();
       await addMessage("agent", "text", res.text.trim() + (res.truncated ? "\n\n(Réponse coupée : demande-moi la suite.)" : ""));
+      if (cfg.voice || spokenTurn) speak(res.text);
       setState("ok", "En ligne");
     } catch (e) {
       dots.remove();
@@ -562,7 +573,7 @@ RÈGLES DE SÉCURITÉ
       const msg = e && e.code in copy ? copy[e.code] : "Petit souci de connexion (" + ((e && e.code) || "erreur") + "). Réessaie.";
       if (msg) await addMessage("agent", "text", msg);
     } finally {
-      busy = false; ctl = null; autosize();
+      busy = false; ctl = null; spokenTurn = false; autosize();
     }
   }
 
@@ -762,6 +773,26 @@ RÈGLES DE SÉCURITÉ
     notes.forEach((n) => gm.append(cell({ icon: "doc", color: "indigo", title: n.chemin, onclick: () => { renderSettings(n.chemin); $("view-set").scrollTop = 0; } })));
     box.append(gm);
 
+    box.append(el("div", "section-title", "Voix et Siri"));
+    const gv = el("div", "group with-icons");
+    const vsw = el("label", "switch"); const vin = el("input"); vin.type = "checkbox"; vin.checked = !!cfg.voice; vin.setAttribute("aria-label", "Lire les réponses à voix haute"); vsw.append(vin, el("i"));
+    vin.onchange = async () => { await saveCfg({ voice: vin.checked }); if (!vin.checked) stopSpeaking(); };
+    gv.append(cell({ icon: "chat", color: "teal", title: "Lire les réponses à voix haute", sub: "Toujours actif quand tu parles au micro", end: vsw }));
+    const ib = el("button", "cell"); ib.type = "button";
+    const thumb = el("img"); thumb.src = "assets/apple-touch-icon.png"; thumb.alt = ""; thumb.width = 30; thumb.height = 30; thumb.style.borderRadius = "8px"; thumb.style.flex = "none";
+    const ig = el("div", "grow"); ig.append(el("div", "t", "Enregistrer l'icône"), el("div", "s", "Pour l'écran d'accueil et la bibliothèque d'apps"));
+    ib.append(thumb, ig); ib.onclick = () => saveIcon(ib); gv.append(ib);
+    box.append(gv);
+    box.append(el("div", "section-title", "« Dis Siri, Instinct »"));
+    const gs = el("div", "group"); const ol = el("ol", "steps-list");
+    [
+      "Enregistre l'icône (ci-dessus), elle arrive dans Photos.",
+      "Ouvre l'app Raccourcis, touche +, ajoute l'action « Ouvrir l'URL » avec : " + ARTIFACT_URL,
+      "Nomme le raccourci « Instinct ».",
+      "Touche Partager › « Sur l'écran d'accueil », touche la petite icône › « Choisir une photo » › l'icône Instinct. Elle apparaît sur l'écran d'accueil et dans la bibliothèque d'apps.",
+      "Dis « Dis Siri, Instinct » : l'app s'ouvre. Touche le micro et parle, la réponse est lue à voix haute.",
+    ].forEach((t) => ol.append(el("li", null, t)));
+    gs.append(ol); box.append(gs);
     box.append(el("div", "section-title", "Apparence"));
     const gl = el("div", "group"); const sg = el("div", "segmented"); sg.dataset.value = glassMode(); sg.append(el("span", "thumb"));
     [["clear", "Transparent"], ["tinted", "Teinté"]].forEach(([v, label]) => { const b = el("button", null, label); b.type = "button"; b.onclick = () => { setGlass(v); sg.dataset.value = v; }; sg.append(b); });
@@ -788,18 +819,81 @@ RÈGLES DE SÉCURITÉ
     }
   }
 
+  // ------------------------------------------------------------- voix
+  function toast(text) {
+    document.querySelector(".toast")?.remove();
+    const t = el("div", "toast glass", text); document.querySelector(".app").append(t);
+    setTimeout(() => t.remove(), 3800);
+  }
+  function startListening() {
+    if (!dict) {
+      // Sur l'iPhone, la dictée passe par le micro du clavier.
+      const t = $("input"); t.focus(); spokenTurn = true;
+      toast("Touche le micro du clavier pour dicter, puis envoie.");
+      return;
+    }
+    heard = ""; spokenTurn = true;
+    dict.start().catch((e) => {
+      listening = false; autosize();
+      if (e && e.code === "not_granted") { dict = null; toast("Micro refusé : utilise le micro du clavier."); }
+    });
+  }
+  async function stopListening(andSend) {
+    try { await dict.stop(); } catch {}
+    listening = false; autosize();
+    if (andSend && $("input").value.trim()) send($("input").value);
+  }
+  function plain(text) { return String(text || "").replace(/https?:\/\/\S+/g, "le lien").replace(/[•*#_`]/g, "").slice(0, 1900); }
+  async function speak(text) {
+    const words = plain(text); if (!words.trim()) return;
+    if (tts) { try { await tts.speak(words, { language: "fr", voice: "buttery" }); return; } catch {} }
+    try {
+      const u = new SpeechSynthesisUtterance(words); u.lang = "fr-FR";
+      const v = (speechSynthesis.getVoices() || []).find((x) => /^fr/i.test(x.lang)); if (v) u.voice = v;
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    } catch {}
+  }
+  function stopSpeaking() { try { tts && tts.stop(); } catch {} try { speechSynthesis.cancel(); } catch {} }
+  async function saveIcon(btn) {
+    if (!downloads) { toast("Enregistrement indisponible ici : fais un appui long sur l'icône ci-dessus."); return; }
+    try {
+      const r = await fetch("assets/icon-1024.png"); const data = new Uint8Array(await r.arrayBuffer());
+      await downloads.save({ filename: "instinct-icone.png", data }); btn.querySelector(".t").textContent = "Icône enregistrée";
+    } catch (e) { if (!e || e.code !== "declined") toast("Enregistrement impossible : fais un appui long sur l'icône."); }
+  }
+
   // ------------------------------------------------------------- verre, dock, saisie
   function glassMode() { try { return localStorage.getItem("instinct-glass") === "tinted" ? "tinted" : "clear"; } catch { return "clear"; } }
   function setGlass(v) { document.documentElement.dataset.glass = v; try { localStorage.setItem("instinct-glass", v); } catch {} }
   function toggleChips(open) { const chips = $("chips"); const next = typeof open === "boolean" ? open : chips.hidden; chips.hidden = !next; $("plus").setAttribute("aria-expanded", String(next)); }
-  function autosize() { const t = $("input"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 132) + "px"; $("sendBtn").disabled = !t.value.trim() || busy; }
+  const ICON_SEND = '<path d="M12 19V5M6 11l6-6 6 6"/>';
+  const ICON_MIC = '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>';
+  const ICON_STOP = '<rect x="7" y="7" width="10" height="10" rx="2.5" fill="currentColor" stroke="none"/>';
+  function autosize() {
+    const t = $("input"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 132) + "px";
+    const b = $("sendBtn"); const empty = !t.value.trim();
+    const mode = listening ? "listening" : empty ? "mic" : "send";
+    if (b.dataset.mode !== mode) {
+      b.dataset.mode = mode;
+      b.className = "send" + (mode === "send" ? "" : " " + mode);
+      b.querySelector("svg").innerHTML = mode === "send" ? ICON_SEND : mode === "mic" ? ICON_MIC : ICON_STOP;
+      b.setAttribute("aria-label", mode === "send" ? "Envoyer" : mode === "mic" ? "Parler" : "Arrêter et envoyer");
+    }
+    b.disabled = busy && mode === "send";
+  }
   document.querySelectorAll(".view").forEach((v) => { const bar = v.querySelector(".navbar"); v.addEventListener("scroll", () => bar.classList.toggle("scrolled", v.scrollTop > 34), { passive: true }); });
   const dock = $("dock"); const syncDock = () => document.documentElement.style.setProperty("--dock-h", dock.offsetHeight + "px");
   if (window.ResizeObserver) new ResizeObserver(syncDock).observe(dock); syncDock();
   setGlass(glassMode());
   CHIPS.forEach(([icon, label, text]) => { const c = el("button", "chip glass"); c.type = "button"; c.append(svg(icon), label); c.onclick = () => { toggleChips(false); if (text.endsWith(" ")) goChat(text); else send(text); }; $("chips").append(c); });
   $("plus").onclick = () => toggleChips();
-  $("composer").addEventListener("submit", (e) => { e.preventDefault(); send($("input").value); });
+  $("composer").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const mode = $("sendBtn").dataset.mode;
+    if (mode === "listening") return stopListening(true);
+    if (mode === "mic") return startListening();
+    send($("input").value);
+  });
   $("input").addEventListener("input", autosize);
   $("input").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing && window.matchMedia("(pointer: fine)").matches) { e.preventDefault(); send($("input").value); } });
   document.querySelectorAll("nav.tabs button").forEach((b) => (b.onclick = () => show(b.dataset.view)));
@@ -807,7 +901,12 @@ RÈGLES DE SÉCURITÉ
   // ------------------------------------------------------------- démarrage
   async function boot() {
     const use = window.claude && typeof window.claude.use === "function" ? (n) => window.claude.use(n) : async () => null;
-    [sample, db, mcp] = await Promise.all([use("sample"), use("db"), use("mcp")]);
+    [sample, db, mcp, dict, tts, downloads] = await Promise.all([use("sample"), use("db"), use("mcp"), use("dictation"), use("tts"), use("downloads")]);
+    if (dict) {
+      dict.onPartial(({ text }) => { $("input").value = (heard + " " + text).trim(); autosize(); });
+      dict.onFinal(({ text }) => { heard = (heard + " " + text).trim(); $("input").value = heard; autosize(); });
+      dict.onState(({ state }) => { listening = state === "listening"; $("input").placeholder = listening ? "J'écoute…" : "Demande à Instinct"; autosize(); });
+    }
     if (!sample || !db) { setState("warn", "Hors Claude"); notice("Ouvre cette app dans claude.ai ou dans l'app Claude : c'est là qu'Instinct trouve son intelligence et sa mémoire."); renderThread(); return; }
     setState("ok", "En ligne");
     const timer = setTimeout(() => setState("warn", "Chargement lent"), 10000);
@@ -831,6 +930,7 @@ RÈGLES DE SÉCURITÉ
     if (n > 0) { const b = el("span", "badge", String(n)); b.setAttribute("aria-label", n + " en attente"); tab.append(b); }
   }
   renderThread();
+  autosize();
   boot();
 })();
 </script>
