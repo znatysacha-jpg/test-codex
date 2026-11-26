@@ -33,7 +33,9 @@ def bootstrap(bridge, client, s: Settings) -> None:
             s.agent_id = state["agent_id"]
             s.environment_id = state["environment_id"]
             s.memory_store_id = state["memory_store_id"]
-        except Exception:
+            s.extra.pop("erreur_creation", None)
+        except Exception as e:
+            s.extra["erreur_creation"] = f"{type(e).__name__} : {str(e)[:300]}"
             log.exception("Création automatique de l'agent impossible (vérifiez ANTHROPIC_API_KEY)")
     if s.telegram_enabled and s.public_base_url and "telegram" in bridge.channels:
         result = bridge.channels["telegram"].set_webhook(f"{s.public_base_url}/telegram/webhook")
@@ -87,6 +89,10 @@ def setup_message(store: Store, s: Settings) -> str:
     if not s.public_base_url:
         return "Adresse publique inconnue : définis PUBLIC_BASE_URL sur la passerelle pour obtenir les réglages."
     lines = ["Réglages de ton agent", ""]
+    if s.extra.get("erreur_creation"):
+        lines += ["⚠️ L'agent n'a pas pu être créé chez Anthropic :", s.extra["erreur_creation"], ""]
+    elif not s.agent_id:
+        lines += ["L'agent est en cours de création chez Anthropic, réessaie /start dans une minute.", ""]
     lines.append("1. App iPhone : dans claude.ai › Réglages › Connecteurs › Ajouter un connecteur personnalisé")
     if s.mcp_secret:
         lines += ["Nom : Instinct perso", "Adresse :", f"{s.public_base_url}/mcp/{s.mcp_secret}/"]

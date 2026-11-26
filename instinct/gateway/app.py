@@ -143,6 +143,7 @@ def build(settings: Optional[Settings] = None, client: Optional[anthropic.Anthro
             "app_connector": connector is not None,
             "siri": bool(s.siri_token),
             "adresse_publique": bool(s.public_base_url),
+            "erreur_creation": s.extra.get("erreur_creation"),
         }
 
     # ------------------------------------------------------------- commandes
